@@ -55,11 +55,9 @@
             android:key="ttsAggregationEnabled"
             app:iconSpaceReserved="false" />
 
-        <io.legado.app.lib.prefs.SeekBarPreference
+        <io.legado.app.lib.prefs.EditTextPreference
             android:defaultValue="100"
             android:key="ttsAggregationLength"
-            android:max="200"
-            android:min="50"
             android:title="@string/tts_aggregation_length"
             android:summary="@string/tts_aggregation_length_summary"
             app:iconSpaceReserved="false" />
