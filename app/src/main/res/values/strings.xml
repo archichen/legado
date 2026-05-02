@@ -1233,10 +1233,10 @@
     <string name="auto_check_new_backup_t">自动检查新备份</string>
     <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="sys_image_picker">系统图片选择器</string>
-</resources>
     <string name="tts_aggregation_enabled">启用段落聚合</string>
     <string name="tts_aggregation_enabled_summary">合并短段落以减少TTS调用次数</string>
     <string name="tts_aggregation_length">最大聚合文本长度</string>
     <string name="tts_aggregation_length_summary">聚合后的段落最大字符数</string>
     <string name="tts_preload_enabled">启用预加载</string>
     <string name="tts_preload_enabled_summary">播放当前段落时预加载下一段落</string>
+</resources>
