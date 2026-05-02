@@ -186,4 +186,8 @@ object PreferKey {
     const val showReadTitleAddition = "showReadTitleAddition"
     const val readBarStyleFollowPage = "readBarStyleFollowPage"
     const val contentSelectSpeakMod = "contentReadAloudMod"
+
+    const val ttsAggregationEnabled = "ttsAggregationEnabled"
+    const val ttsAggregationLength = "ttsAggregationLength"
+    const val ttsPreloadEnabled = "ttsPreloadEnabled"
 }

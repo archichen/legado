@@ -65,6 +65,13 @@ data class TextLine(
             }
             field = value
         }
+    var isPreloaded: Boolean = false
+        set(value) {
+            if (field != value) {
+                invalidate()
+            }
+            field = value
+        }
     var textPage: TextPage = emptyTextPage
     var isLeftLine = true
 

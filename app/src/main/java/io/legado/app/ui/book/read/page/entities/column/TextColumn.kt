@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.read.page.entities.column
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import androidx.annotation.Keep
 import io.legado.app.help.config.ReadBookConfig
@@ -48,10 +49,10 @@ data class TextColumn(
         } else {
             ChapterProvider.contentPaint
         }
-        val textColor = if (textLine.isReadAloud || isSearchResult) {
-            ThemeStore.accentColor
-        } else {
-            ReadBookConfig.textColor
+        val textColor = when {
+            textLine.isReadAloud || isSearchResult -> ThemeStore.accentColor
+            textLine.isPreloaded -> Color.argb(200, 0, 200, 83)
+            else -> ReadBookConfig.textColor
         }
         if (textPaint.color != textColor) {
             textPaint.color = textColor

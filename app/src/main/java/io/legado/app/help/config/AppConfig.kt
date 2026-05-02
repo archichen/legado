@@ -277,6 +277,24 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefInt(PreferKey.ttsTimer, value)
         }
 
+    var ttsAggregationEnabled: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.ttsAggregationEnabled, false)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.ttsAggregationEnabled, value)
+        }
+
+    var ttsAggregationLength: Int
+        get() = appCtx.getPrefInt(PreferKey.ttsAggregationLength, 100)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.ttsAggregationLength, value)
+        }
+
+    var ttsPreloadEnabled: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.ttsPreloadEnabled, true)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.ttsPreloadEnabled, value)
+        }
+
     val speechRatePlay: Int get() = if (ttsFlowSys) defaultSpeechRate else ttsSpeechRate
 
     var chineseConverterType: Int

@@ -1680,6 +1680,18 @@ class ReadBookActivity : BaseReadBookActivity(),
                 }
             }
         }
+        observeEventSticky<Pair<Int, Int>>(EventBus.TTS_PRELOAD) { (start, end) ->
+            lifecycleScope.launch(IO) {
+                ReadBook.curTextChapter?.let { textChapter ->
+                    val pageIndex = ReadBook.durPageIndex
+                    val pageStart = textChapter.getReadLength(pageIndex)
+                    textChapter.getPage(pageIndex)?.let { page ->
+                        page.upPagePreloadSpan(start - pageStart, end - pageStart)
+                        upContent()
+                    }
+                }
+            }
+        }
         observeEvent<Boolean>(PreferKey.keepLight) {
             upScreenTimeOut()
         }

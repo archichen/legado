@@ -202,6 +202,36 @@ data class TextPage(
     }
 
     /**
+     * 移除预加载标志
+     */
+    fun removePagePreloadSpan(): TextPage {
+        for (i in textLines.indices) {
+            textLines[i].isPreloaded = false
+        }
+        return this
+    }
+
+    /**
+     * 更新预加载标志
+     * @param preloadStart 预加载文字开始位置
+     * @param preloadEnd 预加载文字结束位置
+     */
+    fun upPagePreloadSpan(preloadStart: Int, preloadEnd: Int) {
+        removePagePreloadSpan()
+        if (preloadStart < 0 || preloadEnd <= preloadStart) return
+        var lineStart = 0
+        for (index in textLines.indices) {
+            val textLine = textLines[index]
+            val lineLength = textLine.text.length + if (textLine.isParagraphEnd) 1 else 0
+            val lineEnd = lineStart + lineLength
+            if (lineEnd > preloadStart && lineStart < preloadEnd) {
+                textLine.isPreloaded = true
+            }
+            lineStart = lineEnd
+        }
+    }
+
+    /**
      * 更新朗读标志
      * @param aloudSpanStart 朗读文字开始位置
      */

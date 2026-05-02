@@ -50,6 +50,29 @@
 
         <io.legado.app.lib.prefs.SwitchPreference
             android:defaultValue="false"
+            android:title="@string/tts_aggregation_enabled"
+            android:summary="@string/tts_aggregation_enabled_summary"
+            android:key="ttsAggregationEnabled"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SeekBarPreference
+            android:defaultValue="100"
+            android:key="ttsAggregationLength"
+            android:max="200"
+            android:min="50"
+            android:title="@string/tts_aggregation_length"
+            android:summary="@string/tts_aggregation_length_summary"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:title="@string/tts_preload_enabled"
+            android:summary="@string/tts_preload_enabled_summary"
+            android:key="ttsPreloadEnabled"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
             android:title="@string/stream_read_aloud_audio"
             android:summary="@string/stream_read_aloud_audio_summary"
             android:key="streamReadAloudAudio"

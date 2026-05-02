@@ -33,6 +33,7 @@ import io.legado.app.constant.IntentAction
 import io.legado.app.constant.NotificationId
 import io.legado.app.constant.PreferKey
 import io.legado.app.constant.Status
+import io.legado.app.data.entities.TTSSegment
 import io.legado.app.help.MediaHelp
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
@@ -120,6 +121,8 @@ abstract class BaseReadAloudService : BaseService(),
     internal var readAloudNumber: Int = 0
     internal var textChapter: TextChapter? = null
     internal var pageIndex = 0
+    internal var segments: List<TTSSegment> = emptyList()
+    internal var currentSegmentIndex: Int = 0
     private var needResumeOnAudioFocusGain = false
     private var needResumeOnCallStateIdle = false
     private var registeredPhoneStateListener = false
@@ -242,6 +245,15 @@ abstract class BaseReadAloudService : BaseService(),
             contentList = textChapter.getNeedReadAloud(0, readAloudByPage, 0)
                 .split("\n")
                 .filter { it.isNotEmpty() }
+
+            if (AppConfig.ttsAggregationEnabled) {
+                segments = TTSSegment.aggregate(contentList, AppConfig.ttsAggregationLength)
+                currentSegmentIndex = TTSSegment.findSegment(segments, nowSpeak)
+                if (currentSegmentIndex < 0) currentSegmentIndex = 0
+            } else {
+                segments = emptyList()
+                currentSegmentIndex = 0
+            }
             var pos = startPos
             val page = textChapter.getPage(pageIndex)!!
             if (pos > 0) {

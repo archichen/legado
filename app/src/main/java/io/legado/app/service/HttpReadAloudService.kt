@@ -30,6 +30,7 @@ import io.legado.app.R
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.AppPattern
 import io.legado.app.data.entities.HttpTTS
+import io.legado.app.data.entities.TTSSegment
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
@@ -151,6 +152,12 @@ class HttpReadAloudService : BaseReadAloudService(),
         paragraphStartPos = 0
         if (nowSpeak < contentList.lastIndex) {
             nowSpeak++
+            if (segments.isNotEmpty() && AppConfig.ttsAggregationEnabled) {
+                val newSegmentIndex = TTSSegment.findSegment(segments, nowSpeak)
+                if (newSegmentIndex >= 0 && newSegmentIndex != currentSegmentIndex) {
+                    currentSegmentIndex = newSegmentIndex
+                }
+            }
         } else {
             nextChapter()
         }
@@ -163,45 +170,125 @@ class HttpReadAloudService : BaseReadAloudService(),
             downloadTaskActiveLock.withLock {
                 ensureActive()
                 val httpTts = ReadAloud.httpTTS ?: throw NoStackTraceException("tts is null")
-                contentList.forEachIndexed { index, content ->
-                    ensureActive()
-                    if (index < nowSpeak) return@forEachIndexed
-                    var text = content
-                    if (paragraphStartPos > 0 && index == nowSpeak) {
-                        text = text.substring(paragraphStartPos)
-                    }
-                    val fileName = md5SpeakFileName(text)
-                    val speakText = text.replace(AppPattern.notReadAloudRegex, "")
-                    if (speakText.isEmpty()) {
-                        AppLog.put("阅读段落内容为空，使用无声音频代替。\n朗读文本：$text")
-                        createSilentSound(fileName)
-                    } else if (!hasSpeakFile(fileName)) {
-                        runCatching {
-                            val inputStream = getSpeakStream(httpTts, speakText)
-                            if (inputStream != null) {
-                                createSpeakFile(fileName, inputStream)
-                            } else {
-                                createSilentSound(fileName)
-                            }
-                        }.onFailure {
-                            when (it) {
-                                is CancellationException -> Unit
-                                else -> pauseReadAloud()
-                            }
-                            return@execute
-                        }
-                    }
-                    val file = getSpeakFileAsMd5(fileName)
-                    val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
-                    launch(Main) {
-                        exoPlayer.addMediaItem(mediaItem)
-                    }
+
+                if (segments.isNotEmpty() && AppConfig.ttsAggregationEnabled) {
+                    downloadAndPlayAggregatedAudios(httpTts)
+                } else {
+                    downloadAndPlayOriginalAudios(httpTts)
                 }
-                preDownloadAudios(httpTts)
             }
         }.onError {
             AppLog.put("朗读下载出错\n${it.localizedMessage}", it, true)
         }
+    }
+
+    private suspend fun downloadAndPlayAggregatedAudios(httpTts: HttpTTS) {
+        val startSegmentIndex = currentSegmentIndex
+        for (i in startSegmentIndex until segments.size) {
+            ensureActive()
+            val segment = segments[i]
+            val fileName = md5SpeakFileName(segment.text)
+            val speakText = segment.text.replace(AppPattern.notReadAloudRegex, "")
+
+            if (speakText.isEmpty()) {
+                createSilentSound(fileName)
+            } else if (!hasSpeakFile(fileName)) {
+                runCatching {
+                    val inputStream = getSpeakStream(httpTts, speakText)
+                    if (inputStream != null) {
+                        createSpeakFile(fileName, inputStream)
+                        segment.audioCached = true
+                    } else {
+                        createSilentSound(fileName)
+                    }
+                }.onFailure {
+                    when (it) {
+                        is CancellationException -> Unit
+                        else -> pauseReadAloud()
+                    }
+                    return
+                }
+            } else {
+                segment.audioCached = true
+            }
+
+            val file = getSpeakFileAsMd5(fileName)
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+            launch(Main) {
+                exoPlayer.addMediaItem(mediaItem)
+            }
+
+            updatePreloadHighlight(segment)
+        }
+
+        if (AppConfig.ttsPreloadEnabled) {
+            preloadNextSegment(httpTts)
+        }
+    }
+
+    private suspend fun downloadAndPlayOriginalAudios(httpTts: HttpTTS) {
+        contentList.forEachIndexed { index, content ->
+            ensureActive()
+            if (index < nowSpeak) return@forEachIndexed
+            var text = content
+            if (paragraphStartPos > 0 && index == nowSpeak) {
+                text = text.substring(paragraphStartPos)
+            }
+            val fileName = md5SpeakFileName(text)
+            val speakText = text.replace(AppPattern.notReadAloudRegex, "")
+            if (speakText.isEmpty()) {
+                AppLog.put("阅读段落内容为空，使用无声音频代替。\n朗读文本：$text")
+                createSilentSound(fileName)
+            } else if (!hasSpeakFile(fileName)) {
+                runCatching {
+                    val inputStream = getSpeakStream(httpTts, speakText)
+                    if (inputStream != null) {
+                        createSpeakFile(fileName, inputStream)
+                    } else {
+                        createSilentSound(fileName)
+                    }
+                }.onFailure {
+                    when (it) {
+                        is CancellationException -> Unit
+                        else -> pauseReadAloud()
+                    }
+                    return
+                }
+            }
+            val file = getSpeakFileAsMd5(fileName)
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+            launch(Main) {
+                exoPlayer.addMediaItem(mediaItem)
+            }
+        }
+        preDownloadAudios(httpTts)
+    }
+
+    private suspend fun preloadNextSegment(httpTts: HttpTTS) {
+        val nextIndex = currentSegmentIndex + 1
+        if (nextIndex >= segments.size) return
+
+        val segment = segments[nextIndex]
+        val fileName = md5SpeakFileName(segment.text)
+        val speakText = segment.text.replace(AppPattern.notReadAloudRegex, "")
+
+        if (speakText.isEmpty() || hasSpeakFile(fileName)) return
+
+        runCatching {
+            val inputStream = getSpeakStream(httpTts, speakText)
+            if (inputStream != null) {
+                createSpeakFile(fileName, inputStream)
+                segment.audioCached = true
+                updatePreloadHighlight(segment)
+            }
+        }
+    }
+
+    private fun updatePreloadHighlight(segment: TTSSegment) {
+        if (!AppConfig.ttsPreloadEnabled) return
+        val startPos = contentList.take(segment.startIndex).sumOf { it.length + 1 }
+        val endPos = startPos + segment.text.length
+        postEvent(EventBus.TTS_PRELOAD, startPos to endPos)
     }
 
     private suspend fun preDownloadAudios(httpTts: HttpTTS) {
