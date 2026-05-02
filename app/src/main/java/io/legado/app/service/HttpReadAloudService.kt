@@ -29,6 +29,7 @@ import com.script.ScriptException
 import io.legado.app.R
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.AppPattern
+import io.legado.app.constant.EventBus
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.data.entities.TTSSegment
 import io.legado.app.exception.NoStackTraceException
@@ -42,6 +43,7 @@ import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.MD5Utils
+import io.legado.app.utils.postEvent
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.servicePendingIntent
 import io.legado.app.utils.toastOnUi
@@ -185,7 +187,7 @@ class HttpReadAloudService : BaseReadAloudService(),
     private suspend fun downloadAndPlayAggregatedAudios(httpTts: HttpTTS) {
         val startSegmentIndex = currentSegmentIndex
         for (i in startSegmentIndex until segments.size) {
-            ensureActive()
+            currentCoroutineContext().ensureActive()
             val segment = segments[i]
             val fileName = md5SpeakFileName(segment.text)
             val speakText = segment.text.replace(AppPattern.notReadAloudRegex, "")
@@ -214,7 +216,7 @@ class HttpReadAloudService : BaseReadAloudService(),
 
             val file = getSpeakFileAsMd5(fileName)
             val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
-            launch(Main) {
+            lifecycleScope.launch(Main) {
                 exoPlayer.addMediaItem(mediaItem)
             }
 
@@ -228,7 +230,7 @@ class HttpReadAloudService : BaseReadAloudService(),
 
     private suspend fun downloadAndPlayOriginalAudios(httpTts: HttpTTS) {
         contentList.forEachIndexed { index, content ->
-            ensureActive()
+            currentCoroutineContext().ensureActive()
             if (index < nowSpeak) return@forEachIndexed
             var text = content
             if (paragraphStartPos > 0 && index == nowSpeak) {
@@ -257,7 +259,7 @@ class HttpReadAloudService : BaseReadAloudService(),
             }
             val file = getSpeakFileAsMd5(fileName)
             val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
-            launch(Main) {
+            lifecycleScope.launch(Main) {
                 exoPlayer.addMediaItem(mediaItem)
             }
         }
