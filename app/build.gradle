@@ -286,8 +286,12 @@ dependencies {
     implementation libs.firebase.perf
 
     //Langchain4j AI Agent
-    implementation libs.langchain4j.core
-    implementation libs.langchain4j.open.ai
+    implementation(libs.langchain4j.core) {
+        exclude group: 'org.apache.opennlp', module: 'opennlp-tools'
+    }
+    implementation(libs.langchain4j.open.ai) {
+        exclude group: 'org.apache.opennlp', module: 'opennlp-tools'
+    }
 
     implementation libs.glide.recyclerview
 
