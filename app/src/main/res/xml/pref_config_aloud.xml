@@ -60,6 +60,7 @@
             android:key="ttsAggregationLength"
             android:title="@string/tts_aggregation_length"
             android:summary="@string/tts_aggregation_length_summary"
+            android:inputType="number"
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.SwitchPreference

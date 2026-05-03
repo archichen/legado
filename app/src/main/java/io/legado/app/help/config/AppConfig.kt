@@ -284,9 +284,13 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         }
 
     var ttsAggregationLength: Int
-        get() = appCtx.getPrefInt(PreferKey.ttsAggregationLength, 100)
+        get() = try {
+            appCtx.getPrefString(PreferKey.ttsAggregationLength, "100")?.toIntOrNull() ?: 100
+        } catch (e: Exception) {
+            100
+        }
         set(value) {
-            appCtx.putPrefInt(PreferKey.ttsAggregationLength, value)
+            appCtx.putPrefString(PreferKey.ttsAggregationLength, value.toString())
         }
 
     var ttsPreloadEnabled: Boolean
