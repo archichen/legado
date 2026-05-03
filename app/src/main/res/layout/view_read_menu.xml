@@ -209,6 +209,26 @@
                 app:pressedTranslationZ="2dp"
                 tools:ignore="UnusedAttribute" />
 
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabAI"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:contentDescription="@string/ai_chat"
+                android:src="@drawable/ic_smart_toy"
+                android:tint="@color/primaryText"
+                android:tooltipText="@string/ai_chat"
+                app:backgroundTint="@color/background_menu"
+                app:elevation="2dp"
+                app:fabSize="mini"
+                app:pressedTranslationZ="2dp"
+                tools:ignore="UnusedAttribute" />
+
         </LinearLayout>
 
         <!--底部设置栏-->

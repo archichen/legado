@@ -194,6 +194,10 @@
         <activity
             android:name=".ui.config.ConfigActivity"
             android:launchMode="standard" />
+        <!-- LLM Provider 管理 -->
+        <activity
+            android:name=".ui.config.llm.LLMProviderActivity"
+            android:launchMode="standard" />
         <!-- 搜索界面 -->
         <activity
             android:name=".ui.book.search.SearchActivity"

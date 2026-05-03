@@ -201,6 +201,8 @@ class ReadMenu @JvmOverloads constructor(
         fabReplaceRule.setColorFilter(textColor)
         fabNightTheme.backgroundTintList = bottomBackgroundList
         fabNightTheme.setColorFilter(textColor)
+        fabAI.backgroundTintList = bottomBackgroundList
+        fabAI.setColorFilter(textColor)
         tvPre.setTextColor(textColor)
         tvNext.setTextColor(textColor)
         ivCatalog.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
@@ -455,6 +457,13 @@ class ReadMenu @JvmOverloads constructor(
             ThemeConfig.applyDayNight(context)
         }
 
+        //AI对话
+        fabAI.setOnClickListener {
+            runMenuOut {
+                callBack.openAIChat()
+            }
+        }
+
         //上一章
         tvPre.setOnClickListener { ReadBook.moveToPrevChapter(upContent = true, toLast = false) }
 
@@ -585,6 +594,7 @@ class ReadMenu @JvmOverloads constructor(
         fun skipToChapter(index: Int)
         fun onMenuShow()
         fun onMenuHide()
+        fun openAIChat()
     }
 
 }

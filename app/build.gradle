@@ -30,6 +30,9 @@ android {
         jvmToolchain {
             languageVersion.set(JavaLanguageVersion.of(17))
         }
+        compilerOptions {
+            javaParameters = true
+        }
     }
 
     signingConfigs {
@@ -281,6 +284,10 @@ dependencies {
     implementation platform(libs.firebase.bom)
     implementation libs.firebase.analytics
     implementation libs.firebase.perf
+
+    //Langchain4j AI Agent
+    implementation libs.langchain4j.core
+    implementation libs.langchain4j.open.ai
 
     implementation libs.glide.recyclerview
 
