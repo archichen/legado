@@ -69,6 +69,7 @@ import java.io.File
 import java.io.InputStream
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -111,6 +112,7 @@ class HttpReadAloudService : BaseReadAloudService(),
     private var playErrorNo = 0
     private val downloadTaskActiveLock = Mutex()
     private val loadingState = MutableStateFlow(false)
+    private val pendingDownloads = ConcurrentHashMap<String, Boolean>()
 
     override fun onCreate() {
         super.onCreate()
@@ -158,6 +160,12 @@ class HttpReadAloudService : BaseReadAloudService(),
                 val newSegmentIndex = TTSSegment.findSegment(segments, nowSpeak)
                 if (newSegmentIndex >= 0 && newSegmentIndex != currentSegmentIndex) {
                     currentSegmentIndex = newSegmentIndex
+                    if (AppConfig.ttsPreloadEnabled) {
+                        val httpTts = ReadAloud.httpTTS ?: return
+                        lifecycleScope.launch {
+                            preloadNextSegment(httpTts)
+                        }
+                    }
                 }
             }
         } else {
@@ -194,7 +202,7 @@ class HttpReadAloudService : BaseReadAloudService(),
 
             if (speakText.isEmpty()) {
                 createSilentSound(fileName)
-            } else if (!hasSpeakFile(fileName)) {
+            } else if (!hasSpeakFile(fileName) && pendingDownloads.putIfAbsent(fileName, true) == null) {
                 runCatching {
                     val inputStream = getSpeakStream(httpTts, speakText)
                     if (inputStream != null) {
@@ -203,6 +211,8 @@ class HttpReadAloudService : BaseReadAloudService(),
                     } else {
                         createSilentSound(fileName)
                     }
+                }.also {
+                    pendingDownloads.remove(fileName)
                 }.onFailure {
                     when (it) {
                         is CancellationException -> Unit
@@ -222,10 +232,6 @@ class HttpReadAloudService : BaseReadAloudService(),
 
             updatePreloadHighlight(segment)
         }
-
-        if (AppConfig.ttsPreloadEnabled) {
-            preloadNextSegment(httpTts)
-        }
     }
 
     private suspend fun downloadAndPlayOriginalAudios(httpTts: HttpTTS) {
@@ -241,7 +247,7 @@ class HttpReadAloudService : BaseReadAloudService(),
             if (speakText.isEmpty()) {
                 AppLog.put("阅读段落内容为空，使用无声音频代替。\n朗读文本：$text")
                 createSilentSound(fileName)
-            } else if (!hasSpeakFile(fileName)) {
+            } else if (!hasSpeakFile(fileName) && pendingDownloads.putIfAbsent(fileName, true) == null) {
                 runCatching {
                     val inputStream = getSpeakStream(httpTts, speakText)
                     if (inputStream != null) {
@@ -249,6 +255,8 @@ class HttpReadAloudService : BaseReadAloudService(),
                     } else {
                         createSilentSound(fileName)
                     }
+                }.also {
+                    pendingDownloads.remove(fileName)
                 }.onFailure {
                     when (it) {
                         is CancellationException -> Unit
