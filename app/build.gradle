@@ -285,14 +285,6 @@ dependencies {
     implementation libs.firebase.analytics
     implementation libs.firebase.perf
 
-    //Langchain4j AI Agent
-    implementation(libs.langchain4j.core) {
-        exclude group: 'org.apache.opennlp', module: 'opennlp-tools'
-    }
-    implementation(libs.langchain4j.open.ai) {
-        exclude group: 'org.apache.opennlp', module: 'opennlp-tools'
-    }
-
     implementation libs.glide.recyclerview
 
     //LeakCanary, 内存泄露检测

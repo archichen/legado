@@ -140,9 +140,3 @@ cn.hutool.core.util.**{*;}
 # Throwable
 -keepnames class * extends java.lang.Throwable
 -keepclassmembernames,allowobfuscation class * extends java.lang.Throwable{*;}
-
-# Langchain4j
--keep class dev.langchain4j.** { *; }
--dontwarn java.net.http.**
--dontwarn dev.langchain4j.http.client.jdk.**
--dontwarn opennlp.tools.**

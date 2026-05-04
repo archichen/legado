@@ -28,8 +28,8 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
     private val binding get() = _binding!!
     private var bookUrl: String = ""
     private val adapter = ChatAdapter()
-    private var agent: BookAssistant? = null
     private var provider: LLMProvider? = null
+    private var chatHistory = listOf<OpenAIClient.ChatMsg>()
 
     companion object {
         private const val TAG = "ChatDialogFragment"
@@ -89,7 +89,6 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 binding.etInput.text?.clear()
             }
         }
-
         binding.btnClear.setOnClickListener {
             clearHistory()
         }
@@ -99,6 +98,12 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             appDb.chatMessageDao.observeByBook(bookUrl).collectLatest { messages ->
                 adapter.submitList(messages)
+                chatHistory = messages.map { msg ->
+                    OpenAIClient.ChatMsg(
+                        role = msg.role,
+                        content = msg.content
+                    )
+                }
                 if (messages.isNotEmpty()) {
                     binding.recyclerView.scrollToPosition(messages.size - 1)
                 }
@@ -127,11 +132,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 appDb.chatMessageDao.insert(
-                    ChatMessage(
-                        bookUrl = bookUrl,
-                        role = ChatMessage.ROLE_USER,
-                        content = content
-                    )
+                    ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_USER, content = content)
                 )
             }
 
@@ -143,23 +144,15 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                     appDb.bookDao.getBook(bookUrl)
                 } ?: return@launch
 
-                if (agent == null) {
-                    agent = withContext(Dispatchers.IO) {
-                        AgentFactory.createBookAgent(currentProvider, book)
-                    }
+                val (response, newHistory) = withContext(Dispatchers.IO) {
+                    AgentFactory.chat(currentProvider, book, chatHistory, content)
                 }
 
-                val response = withContext(Dispatchers.IO) {
-                    agent!!.chat(content)
-                }
+                chatHistory = newHistory
 
                 withContext(Dispatchers.IO) {
                     appDb.chatMessageDao.insert(
-                        ChatMessage(
-                            bookUrl = bookUrl,
-                            role = ChatMessage.ROLE_ASSISTANT,
-                            content = response
-                        )
+                        ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_ASSISTANT, content = response)
                     )
                 }
             } catch (e: Exception) {
@@ -184,7 +177,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
             withContext(Dispatchers.IO) {
                 appDb.chatMessageDao.deleteByBook(bookUrl)
             }
-            agent = null
+            chatHistory = emptyList()
         }
     }
 
