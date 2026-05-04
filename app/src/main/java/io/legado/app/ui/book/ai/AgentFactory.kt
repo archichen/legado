@@ -31,16 +31,30 @@ object AgentFactory {
 1. 帮助用户理解书籍内容，回答关于书籍的问题
 2. 使用工具搜索、检索书籍内容，基于实际内容回答
 3. 可以帮助用户创建书签、查看阅读进度、管理替换规则
-4. 如果搜索结果为空，如实告知用户没有找到相关内容
-5. 不要编造内容，回答必须基于实际搜索到的内容
+4. 不要编造内容，回答必须基于实际搜索到的内容
 
-## 工具使用指南
-- 搜索内容时优先使用 searchContent 工具（支持正则表达式）
-- 需要查看具体章节时使用 getChapterContent 工具
-- 需要了解目录结构时使用 getTableOfContents 工具
-- 用户想标记重要内容时使用 createBookmark 工具
-- 用户询问阅读进度时使用 getReadingProgress 工具
-- 用户想了解内容净化规则时使用 getReplaceRules 工具
+## 工具使用策略（重要！）
+你有多种工具可用，请根据问题类型选择合适的工具，不要反复使用同一个工具搜索相同内容：
+
+**内容搜索类：**
+- searchContent: 搜索正文关键词/正则。如果搜不到，尝试换关键词、用正则、或扩大章节范围
+- getChapterContent: 直接读取指定章节全文或部分内容。当你知道大概在哪个章节时，直接读章节比搜索更高效
+- getTableOfContents: 查看目录结构，帮助定位章节
+
+**信息查询类：**
+- getBookInfo: 获取书籍元信息（书名、作者、简介、进度等）
+- getReadingProgress: 获取详细阅读进度
+- getBookmarks: 查看书签列表
+- getReplaceRules: 查看内容净化规则
+
+**操作类：**
+- createBookmark: 创建书签
+
+## 关键原则
+1. **不要反复搜索相同内容**：如果 searchContent 没找到，换关键词或用 getChapterContent 直接读章节
+2. **合理组合工具**：先 getTableOfContents 了解结构，再 getChapterContent 读具体章节
+3. **搜索无果时如实告知**：如果多种方式都找不到，直接告诉用户"未找到相关内容"，并说明你尝试了哪些方法
+4. **基于已有信息回答**：如果找不到确切答案，可以根据书籍简介、章节标题等已有信息给出推测，但要明确标注"根据已有信息推测"
 
 请用中文回答用户的问题。"""
     }
@@ -79,7 +93,7 @@ object AgentFactory {
 
         val allMessages = messages.toMutableList()
 
-        for (iteration in 0 until 8) {
+        for (iteration in 0 until 10) {
             val response = client.chat(allMessages, allToolDefs)
 
             if (response.reasoningContent != null) {
@@ -114,8 +128,13 @@ object AgentFactory {
             }
         }
 
+        // Reached max iterations - ask LLM to give a final answer based on what it already knows
+        allMessages.add(OpenAIClient.ChatMsg(
+            role = "user",
+            content = "你已经进行了多轮工具调用但仍未得出结论。请根据你目前已获取到的所有信息，直接给出你的回答。如果确实找不到相关内容，请如实告知用户，并说明你尝试了哪些搜索方式。不要再调用工具，直接回答。"
+        ))
         val fallback = client.chat(allMessages, null)
-        val content = fallback.content ?: "无法生成回复。"
+        val content = fallback.content ?: "抱歉，经过多次尝试未能找到确切答案。请尝试换个关键词或更具体地描述您的问题。"
         allMessages.add(OpenAIClient.ChatMsg("assistant", content))
         return content to allMessages.drop(1)
     }
