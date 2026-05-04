@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.data.appDb
@@ -88,10 +87,9 @@ class LLMProviderActivity :
             dialogBinding.switchDefault.isChecked = it.isDefault
         }
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(if (isEdit) R.string.edit else R.string.add)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+        alert(if (isEdit) R.string.edit else R.string.add) {
+            customView { dialogBinding.root }
+            okButton {
                 val name = dialogBinding.etName.text.toString().trim()
                 val baseUrl = dialogBinding.etBaseUrl.text.toString().trim()
                 val apiKey = dialogBinding.etApiKey.text.toString().trim()
@@ -100,7 +98,7 @@ class LLMProviderActivity :
 
                 if (name.isEmpty() || baseUrl.isEmpty() || modelName.isEmpty()) {
                     toastOnUi("请填写完整信息")
-                    return@setPositiveButton
+                    return@okButton
                 }
 
                 val newProvider = (provider ?: LLMProvider()).copy(
@@ -121,7 +119,7 @@ class LLMProviderActivity :
                     }
                 }
             }
-            .setNegativeButton(R.string.dialog_cancel, null)
-            .show()
+            noButton()
+        }
     }
 }
