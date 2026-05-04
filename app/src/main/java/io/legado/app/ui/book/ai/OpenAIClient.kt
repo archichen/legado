@@ -103,6 +103,7 @@ class OpenAIClient(
         val message = choices[0].asJsonObject.getAsJsonObject("message")
         val content = message.get("content")?.asString
         val role = message.get("role")?.asString ?: "assistant"
+        val reasoningContent = message.get("reasoning_content")?.asString
 
         var toolCalls: List<ToolCallResult>? = null
         if (message.has("tool_calls")) {
@@ -118,7 +119,12 @@ class OpenAIClient(
             }
         }
 
-        return ChatResponse(content = content, role = role, toolCalls = toolCalls)
+        return ChatResponse(
+            content = content,
+            role = role,
+            toolCalls = toolCalls,
+            reasoningContent = reasoningContent
+        )
     }
 
     data class ChatMsg(
@@ -131,7 +137,8 @@ class OpenAIClient(
     data class ChatResponse(
         val content: String?,
         val role: String,
-        val toolCalls: List<ToolCallResult>?
+        val toolCalls: List<ToolCallResult>?,
+        val reasoningContent: String? = null
     )
 
     data class ToolCallResult(

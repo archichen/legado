@@ -145,7 +145,45 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 } ?: return@launch
 
                 val (response, newHistory) = withContext(Dispatchers.IO) {
-                    AgentFactory.chat(currentProvider, book, chatHistory, content)
+                    AgentFactory.chat(currentProvider, book, chatHistory, content,
+                        object : AgentFactory.Callback {
+                            override fun onThinking(thinking: String) {
+                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                                    val thinkingMsg = ChatMessage(
+                                        bookUrl = bookUrl,
+                                        role = ChatMessage.ROLE_THINKING,
+                                        content = thinking.take(200)
+                                    )
+                                    adapter.submitList(adapter.currentList + thinkingMsg)
+                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                }
+                            }
+
+                            override fun onToolCall(toolName: String, arguments: String) {
+                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                                    val toolCallMsg = ChatMessage(
+                                        bookUrl = bookUrl,
+                                        role = ChatMessage.ROLE_TOOL_CALL,
+                                        content = "$toolName($arguments)"
+                                    )
+                                    adapter.submitList(adapter.currentList + toolCallMsg)
+                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                }
+                            }
+
+                            override fun onToolResult(toolName: String, result: String) {
+                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                                    val resultMsg = ChatMessage(
+                                        bookUrl = bookUrl,
+                                        role = ChatMessage.ROLE_TOOL_RESULT,
+                                        content = result.take(200)
+                                    )
+                                    adapter.submitList(adapter.currentList + resultMsg)
+                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                }
+                            }
+                        }
+                    )
                 }
 
                 chatHistory = newHistory

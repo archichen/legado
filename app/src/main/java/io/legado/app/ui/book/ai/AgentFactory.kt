@@ -1,6 +1,5 @@
 package io.legado.app.ui.book.ai
 
-import com.google.gson.JsonParser
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.LLMProvider
 
@@ -17,11 +16,18 @@ object AgentFactory {
 
 请用中文回答用户的问题。"""
 
+    interface Callback {
+        fun onThinking(thinking: String)
+        fun onToolCall(toolName: String, arguments: String)
+        fun onToolResult(toolName: String, result: String)
+    }
+
     fun chat(
         provider: LLMProvider,
         book: Book,
         history: List<OpenAIClient.ChatMsg>,
-        userMessage: String
+        userMessage: String,
+        callback: Callback? = null
     ): Pair<String, List<OpenAIClient.ChatMsg>> {
         val client = OpenAIClient(provider.baseUrl, provider.apiKey, provider.modelName)
         val tool = BookSearchTool(book)
@@ -37,6 +43,10 @@ object AgentFactory {
         for (iteration in 0 until 5) {
             val response = client.chat(allMessages, toolDefs)
 
+            if (response.reasoningContent != null) {
+                callback?.onThinking(response.reasoningContent)
+            }
+
             if (response.toolCalls.isNullOrEmpty()) {
                 val content = response.content ?: "无法生成回复。"
                 allMessages.add(OpenAIClient.ChatMsg("assistant", content))
@@ -50,11 +60,13 @@ object AgentFactory {
             ))
 
             for (tc in response.toolCalls) {
+                callback?.onToolCall(tc.name, tc.arguments)
                 val result = try {
                     tool.executeTool(tc.name, tc.arguments)
                 } catch (e: Exception) {
                     "工具执行错误: ${e.message}"
                 }
+                callback?.onToolResult(tc.name, result)
                 allMessages.add(OpenAIClient.ChatMsg(
                     role = "tool",
                     content = result,

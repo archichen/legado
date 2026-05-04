@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.ai
 
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -26,20 +27,33 @@ class ChatAdapter : ListAdapter<ChatMessage, ChatAdapter.ViewHolder>(DiffCallbac
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: ChatMessage) {
+            binding.tvUserMessage.visibility = android.view.View.GONE
+            binding.tvAssistantMessage.visibility = android.view.View.GONE
+
             when (item.role) {
                 ChatMessage.ROLE_USER -> {
                     binding.tvUserMessage.text = item.content
                     binding.tvUserMessage.visibility = android.view.View.VISIBLE
-                    binding.tvAssistantMessage.visibility = android.view.View.GONE
                 }
                 ChatMessage.ROLE_ASSISTANT -> {
                     binding.tvAssistantMessage.text = item.content
+                    binding.tvAssistantMessage.setTextColor(Color.parseColor("#212121"))
                     binding.tvAssistantMessage.visibility = android.view.View.VISIBLE
-                    binding.tvUserMessage.visibility = android.view.View.GONE
                 }
-                else -> {
-                    binding.tvUserMessage.visibility = android.view.View.GONE
-                    binding.tvAssistantMessage.visibility = android.view.View.GONE
+                ChatMessage.ROLE_THINKING -> {
+                    binding.tvAssistantMessage.text = "💭 思考中: ${item.content}"
+                    binding.tvAssistantMessage.setTextColor(Color.parseColor("#757575"))
+                    binding.tvAssistantMessage.visibility = android.view.View.VISIBLE
+                }
+                ChatMessage.ROLE_TOOL_CALL -> {
+                    binding.tvAssistantMessage.text = "🔍 搜索: ${item.content}"
+                    binding.tvAssistantMessage.setTextColor(Color.parseColor("#1976D2"))
+                    binding.tvAssistantMessage.visibility = android.view.View.VISIBLE
+                }
+                ChatMessage.ROLE_TOOL_RESULT -> {
+                    binding.tvAssistantMessage.text = "📋 结果: ${item.content}"
+                    binding.tvAssistantMessage.setTextColor(Color.parseColor("#388E3C"))
+                    binding.tvAssistantMessage.visibility = android.view.View.VISIBLE
                 }
             }
         }

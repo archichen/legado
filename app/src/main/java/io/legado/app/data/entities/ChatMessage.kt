@@ -24,6 +24,9 @@ data class ChatMessage(
         const val ROLE_USER = "user"
         const val ROLE_ASSISTANT = "assistant"
         const val ROLE_SYSTEM = "system"
+        const val ROLE_THINKING = "thinking"
+        const val ROLE_TOOL_CALL = "tool_call"
+        const val ROLE_TOOL_RESULT = "tool_result"
     }
 
     override fun hashCode(): Int {
