@@ -194,12 +194,13 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                     )
                 }
             } catch (e: Exception) {
+                val errorMsg = e.message ?: "Unknown error"
                 withContext(Dispatchers.IO) {
                     appDb.chatMessageDao.insert(
                         ChatMessage(
                             bookUrl = bookUrl,
                             role = ChatMessage.ROLE_ASSISTANT,
-                            content = getString(R.string.ai_error, e.message)
+                            content = "错误: $errorMsg"
                         )
                     )
                 }

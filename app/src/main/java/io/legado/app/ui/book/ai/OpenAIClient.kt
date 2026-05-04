@@ -35,7 +35,7 @@ class OpenAIClient(
             .build()
 
         val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: throw Exception("Empty response")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
 
         if (!response.isSuccessful) {
             throw Exception("API error ${response.code}: $responseBody")
@@ -94,37 +94,48 @@ class OpenAIClient(
     }
 
     private fun parseResponse(responseBody: String): ChatResponse {
-        val json = JsonParser.parseString(responseBody).asJsonObject
-        val choices = json.getAsJsonArray("choices")
-        if (choices == null || choices.size() == 0) {
-            throw Exception("No choices in response: $responseBody")
-        }
-
-        val message = choices[0].asJsonObject.getAsJsonObject("message")
-        val content = message.get("content")?.asString
-        val role = message.get("role")?.asString ?: "assistant"
-        val reasoningContent = message.get("reasoning_content")?.asString
-
-        var toolCalls: List<ToolCallResult>? = null
-        if (message.has("tool_calls")) {
-            val tcArray = message.getAsJsonArray("tool_calls")
-            toolCalls = tcArray.map { tc ->
-                val tcObj = tc.asJsonObject
-                val func = tcObj.getAsJsonObject("function")
-                ToolCallResult(
-                    id = tcObj.get("id").asString,
-                    name = func.get("name").asString,
-                    arguments = func.get("arguments").asString
-                )
+        try {
+            val json = JsonParser.parseString(responseBody).asJsonObject
+            val choices = json.getAsJsonArray("choices")
+            if (choices == null || choices.size() == 0) {
+                throw Exception("No choices in response")
             }
-        }
 
-        return ChatResponse(
-            content = content,
-            role = role,
-            toolCalls = toolCalls,
-            reasoningContent = reasoningContent
-        )
+            val message = choices[0].asJsonObject.getAsJsonObject("message")
+                ?: throw Exception("No message in response")
+            val content = message.get("content")?.let { if (it.isJsonNull) null else it.asString }
+            val role = message.get("role")?.asString ?: "assistant"
+            val reasoningContent = message.get("reasoning_content")?.let { if (it.isJsonNull) null else it.asString }
+
+            var toolCalls: List<ToolCallResult>? = null
+            if (message.has("tool_calls") && !message.get("tool_calls").isJsonNull) {
+                val tcArray = message.getAsJsonArray("tool_calls")
+                if (tcArray != null && tcArray.size() > 0) {
+                    toolCalls = tcArray.mapNotNull { tc ->
+                        try {
+                            val tcObj = tc.asJsonObject
+                            val func = tcObj.getAsJsonObject("function")
+                            ToolCallResult(
+                                id = tcObj.get("id")?.asString ?: "",
+                                name = func.get("name")?.asString ?: "",
+                                arguments = func.get("arguments")?.asString ?: "{}"
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                }
+            }
+
+            return ChatResponse(
+                content = content,
+                role = role,
+                toolCalls = toolCalls,
+                reasoningContent = reasoningContent
+            )
+        } catch (e: Exception) {
+            throw Exception("Failed to parse response: ${e.message}\nResponse: ${responseBody.take(500)}")
+        }
     }
 
     data class ChatMsg(
