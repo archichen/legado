@@ -8,7 +8,9 @@ import io.legado.app.help.book.isLocal
 import io.legado.app.model.CacheBook
 import io.legado.app.ui.book.ai.ToolHelper.int
 import io.legado.app.ui.book.ai.ToolHelper.str
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 class BookChapterTool(private val book: Book) {
 
@@ -23,18 +25,18 @@ class BookChapterTool(private val book: Book) {
     fun getToolDefs(): List<OpenAIClient.ToolDef> = listOf(
         ToolHelper.buildToolDef(
             "getChapterContent",
-            "获取指定章节的正文内容。可以获取全文或指定行范围。返回带行号的内容。如果章节未下载会自动尝试下载。",
+            "获取指定章节的正文内容。chapterIndex 是0-based索引（第一个章节=0，最后一个章节=章节数-1）。如果章节未下载会自动尝试下载。",
             listOf(
-                ToolHelper.PropDef("chapterIndex", "integer", "章节索引（从0开始）", true),
+                ToolHelper.PropDef("chapterIndex", "integer", "章节索引（0-based，第一个=0，最后一个=总章节数-1）", true),
                 ToolHelper.PropDef("startLine", "integer", "起始行号（从1开始），默认从头", false),
                 ToolHelper.PropDef("endLine", "integer", "结束行号（包含），默认到末尾", false)
             )
         ),
         ToolHelper.buildToolDef(
             "getTableOfContents",
-            "获取书籍目录。返回章节列表，包含章节序号和标题。",
+            "获取书籍目录。返回章节列表。注意：章节索引是0-based（第一个章节=0）。",
             listOf(
-                ToolHelper.PropDef("startIndex", "integer", "起始章节索引（从0开始），默认0", false),
+                ToolHelper.PropDef("startIndex", "integer", "起始章节索引（0-based），默认0", false),
                 ToolHelper.PropDef("count", "integer", "返回章节数量，默认30", false)
             )
         ),
@@ -66,7 +68,8 @@ class BookChapterTool(private val book: Book) {
         val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
         if (chapters.isEmpty()) return "该书暂无章节内容。"
         if (chapterIndex < 0 || chapterIndex >= chapters.size) {
-            return "章节索引超出范围，该书共 ${chapters.size} 章（索引 0-${chapters.size - 1}）。"
+            val lastIdx = chapters.size - 1
+            return "章节索引 $chapterIndex 超出范围。该书共 ${chapters.size} 章，有效索引为 0 到 $lastIdx（最后一个章节的索引是 $lastIdx，不是 ${chapters.size}）。"
         }
 
         val chapter = chapters[chapterIndex]
@@ -119,9 +122,9 @@ class BookChapterTool(private val book: Book) {
         if (chapters.isEmpty()) return "该书暂无目录信息。"
         val s = startIndex.coerceIn(0, chapters.size - 1)
         val e = (s + count).coerceAtMost(chapters.size)
-        val header = "目录（共 ${chapters.size} 章，显示 ${s + 1}-${e}）\n"
+        val header = "共 ${chapters.size} 章（索引0-${chapters.size - 1}），当前显示索引 ${s}-${e - 1}：\n"
         val body = chapters.subList(s, e).joinToString("\n") { ch ->
-            "${ch.index + 1}. ${ch.title}"
+            "[${ch.index}] ${ch.title}"
         }
         return header + body
     }

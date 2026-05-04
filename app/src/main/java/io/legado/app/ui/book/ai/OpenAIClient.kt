@@ -4,11 +4,18 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class OpenAIClient(
     private val baseUrl: String,
@@ -23,7 +30,7 @@ class OpenAIClient(
     private val gson = Gson()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-    fun chat(messages: List<ChatMsg>, tools: List<ToolDef>? = null): ChatResponse {
+    suspend fun chat(messages: List<ChatMsg>, tools: List<ToolDef>? = null): ChatResponse {
         val body = buildRequestBody(messages, tools)
         val url = "${baseUrl.trimEnd('/')}/chat/completions"
 
@@ -34,11 +41,39 @@ class OpenAIClient(
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = suspendCancellableCoroutine<String> { cont ->
+            val call = client.newCall(request)
 
-        if (!response.isSuccessful) {
-            throw Exception("API error ${response.code}: $responseBody")
+            cont.invokeOnCancellation {
+                call.cancel()
+            }
+
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (cont.isActive) {
+                        cont.resumeWithException(e)
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        if (!response.isSuccessful) {
+                            val errorBody = response.body?.string() ?: ""
+                            cont.resumeWithException(
+                                Exception("API error ${response.code}: $errorBody")
+                            )
+                            return
+                        }
+                        val body = response.body?.string()
+                            ?: throw Exception("Empty response body")
+                        cont.resume(body)
+                    } catch (e: Exception) {
+                        if (cont.isActive) {
+                            cont.resumeWithException(e)
+                        }
+                    }
+                }
+            })
         }
 
         return parseResponse(responseBody)

@@ -3,6 +3,8 @@ package io.legado.app.ui.book.ai
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.LLMProvider
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 
 object AgentFactory {
 
@@ -56,6 +58,14 @@ object AgentFactory {
 3. **搜索无果时如实告知**：如果多种方式都找不到，直接告诉用户"未找到相关内容"，并说明你尝试了哪些方法
 4. **基于已有信息回答**：如果找不到确切答案，可以根据书籍简介、章节标题等已有信息给出推测，但要明确标注"根据已有信息推测"
 
+## 输出格式
+请使用 Markdown 格式回答，善用：
+- **粗体** 强调关键信息
+- `代码` 标记书名、章节名、关键词
+- > 引用 原文片段
+- 有序/无序列表 梳理信息
+- 分隔线 --- 区分不同部分
+
 请用中文回答用户的问题。"""
     }
 
@@ -65,7 +75,7 @@ object AgentFactory {
         fun onToolResult(toolName: String, result: String)
     }
 
-    fun chat(
+    suspend fun chat(
         provider: LLMProvider,
         book: Book,
         history: List<OpenAIClient.ChatMsg>,
@@ -94,6 +104,8 @@ object AgentFactory {
         val allMessages = messages.toMutableList()
 
         for (iteration in 0 until 20) {
+            coroutineContext.ensureActive()
+
             val response = client.chat(allMessages, allToolDefs)
 
             if (response.reasoningContent != null) {
@@ -113,6 +125,7 @@ object AgentFactory {
             ))
 
             for (tc in response.toolCalls) {
+                coroutineContext.ensureActive()
                 callback?.onToolCall(tc.name, tc.arguments)
                 val result = try {
                     executeTool(tc.name, tc.arguments, searchTool, chapterTool, markTool, progressTool, replaceTool)
@@ -128,7 +141,6 @@ object AgentFactory {
             }
         }
 
-        // Reached max iterations - ask LLM to give a final answer based on what it already knows
         allMessages.add(OpenAIClient.ChatMsg(
             role = "user",
             content = "你已经进行了多轮工具调用但仍未得出结论。请根据你目前已获取到的所有信息，直接给出你的回答。如果确实找不到相关内容，请如实告知用户，并说明你尝试了哪些搜索方式。不要再调用工具，直接回答。"

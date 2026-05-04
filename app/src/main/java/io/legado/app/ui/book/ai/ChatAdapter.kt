@@ -8,10 +8,16 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.data.entities.ChatMessage
 import io.legado.app.databinding.ItemChatMessageBinding
+import io.noties.markwon.Markwon
 
 class ChatAdapter : ListAdapter<ChatMessage, ChatAdapter.ViewHolder>(DiffCallback()) {
 
+    private var markwon: Markwon? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        if (markwon == null) {
+            markwon = Markwon.create(parent.context)
+        }
         val binding = ItemChatMessageBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
@@ -36,8 +42,9 @@ class ChatAdapter : ListAdapter<ChatMessage, ChatAdapter.ViewHolder>(DiffCallbac
                     binding.tvUserMessage.visibility = android.view.View.VISIBLE
                 }
                 ChatMessage.ROLE_ASSISTANT -> {
-                    binding.tvAssistantMessage.text = item.content
                     binding.tvAssistantMessage.setTextColor(Color.parseColor("#212121"))
+                    markwon?.setMarkdown(binding.tvAssistantMessage, item.content)
+                        ?: run { binding.tvAssistantMessage.text = item.content }
                     binding.tvAssistantMessage.visibility = android.view.View.VISIBLE
                 }
                 ChatMessage.ROLE_THINKING -> {
