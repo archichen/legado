@@ -18,6 +18,7 @@ import io.legado.app.data.entities.LLMProvider
 import io.legado.app.databinding.DialogChatBinding
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +31,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
     private val adapter = ChatAdapter()
     private var provider: LLMProvider? = null
     private var chatHistory = listOf<OpenAIClient.ChatMsg>()
+    private var currentJob: Job? = null
 
     companion object {
         private const val TAG = "ChatDialogFragment"
@@ -94,16 +96,48 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         }
     }
 
+    private fun setSendMode() {
+        binding.btnSend.text = getString(R.string.ai_chat_send)
+        binding.btnSend.setOnClickListener {
+            val message = binding.etInput.text.toString().trim()
+            if (message.isNotEmpty()) {
+                sendMessage(message)
+                binding.etInput.text?.clear()
+            }
+        }
+    }
+
+    private fun setStopMode() {
+        binding.btnSend.text = getString(R.string.ai_chat_stop)
+        binding.btnSend.setOnClickListener {
+            currentJob?.cancel()
+            currentJob = null
+            setSendMode()
+            binding.etInput.isEnabled = true
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                appDb.chatMessageDao.insert(
+                    ChatMessage(
+                        bookUrl = bookUrl,
+                        role = ChatMessage.ROLE_ASSISTANT,
+                        content = "（用户已终止）"
+                    )
+                )
+            }
+        }
+    }
+
     private fun observeMessages() {
         viewLifecycleOwner.lifecycleScope.launch {
             appDb.chatMessageDao.observeByBook(bookUrl).collectLatest { messages ->
                 adapter.submitList(messages)
-                chatHistory = messages.map { msg ->
-                    OpenAIClient.ChatMsg(
-                        role = msg.role,
-                        content = msg.content
-                    )
-                }
+                chatHistory = messages
+                    .filter { it.role == ChatMessage.ROLE_USER || it.role == ChatMessage.ROLE_ASSISTANT }
+                    .map { msg ->
+                        OpenAIClient.ChatMsg(
+                            role = msg.role,
+                            content = msg.content
+                        )
+                    }
                 if (messages.isNotEmpty()) {
                     binding.recyclerView.scrollToPosition(messages.size - 1)
                 }
@@ -129,7 +163,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
             return
         }
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        currentJob = viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 appDb.chatMessageDao.insert(
                     ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_USER, content = content)
@@ -137,7 +171,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
             }
 
             binding.etInput.isEnabled = false
-            binding.btnSend.isEnabled = false
+            setStopMode()
 
             try {
                 val book = withContext(Dispatchers.IO) {
@@ -194,6 +228,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                     )
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) return@launch
                 val errorMsg = e.message ?: "Unknown error"
                 withContext(Dispatchers.IO) {
                     appDb.chatMessageDao.insert(
@@ -205,22 +240,29 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                     )
                 }
             } finally {
+                currentJob = null
                 binding.etInput.isEnabled = true
-                binding.btnSend.isEnabled = true
+                setSendMode()
             }
         }
     }
 
     private fun clearHistory() {
+        currentJob?.cancel()
+        currentJob = null
         viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 appDb.chatMessageDao.deleteByBook(bookUrl)
             }
             chatHistory = emptyList()
+            setSendMode()
+            binding.etInput.isEnabled = true
         }
     }
 
     override fun onDestroyView() {
+        currentJob?.cancel()
+        currentJob = null
         super.onDestroyView()
         _binding = null
     }

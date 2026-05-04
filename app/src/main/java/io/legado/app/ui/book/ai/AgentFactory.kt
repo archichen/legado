@@ -93,7 +93,7 @@ object AgentFactory {
 
         val allMessages = messages.toMutableList()
 
-        for (iteration in 0 until 10) {
+        for (iteration in 0 until 20) {
             val response = client.chat(allMessages, allToolDefs)
 
             if (response.reasoningContent != null) {

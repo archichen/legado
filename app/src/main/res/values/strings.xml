@@ -87,6 +87,7 @@
     <string name="ai_chat">AI Chat</string>
     <string name="ai_chat_hint">Ask about the book content...</string>
     <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_stop">Stop</string>
     <string name="ai_chat_clear">Clear History</string>
     <string name="ai_chat_clear_confirm">Are you sure you want to clear all chat history for this book?</string>
     <string name="ai_thinking">Thinking...</string>

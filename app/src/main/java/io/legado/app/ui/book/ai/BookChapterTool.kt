@@ -4,8 +4,11 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
+import io.legado.app.help.book.isLocal
+import io.legado.app.model.CacheBook
 import io.legado.app.ui.book.ai.ToolHelper.int
 import io.legado.app.ui.book.ai.ToolHelper.str
+import kotlinx.coroutines.runBlocking
 
 class BookChapterTool(private val book: Book) {
 
@@ -13,10 +16,14 @@ class BookChapterTool(private val book: Book) {
         ContentProcessor.get(book.name, book.origin)
     }
 
+    private val bookSource by lazy {
+        if (book.isLocal) null else appDb.bookSourceDao.getBookSource(book.origin)
+    }
+
     fun getToolDefs(): List<OpenAIClient.ToolDef> = listOf(
         ToolHelper.buildToolDef(
             "getChapterContent",
-            "获取指定章节的正文内容。可以获取全文或指定行范围。返回带行号的内容。",
+            "获取指定章节的正文内容。可以获取全文或指定行范围。返回带行号的内容。如果章节未下载会自动尝试下载。",
             listOf(
                 ToolHelper.PropDef("chapterIndex", "integer", "章节索引（从0开始）", true),
                 ToolHelper.PropDef("startLine", "integer", "起始行号（从1开始），默认从头", false),
@@ -63,7 +70,34 @@ class BookChapterTool(private val book: Book) {
         }
 
         val chapter = chapters[chapterIndex]
-        val content = BookHelp.getContent(book, chapter) ?: return "章节「${chapter.title}」内容未缓存，无法读取。"
+
+        var content = BookHelp.getContent(book, chapter)
+
+        if (content == null) {
+            if (book.isLocal) {
+                return "章节「${chapter.title}」是本地书籍但无法读取内容。"
+            }
+
+            val source = bookSource
+            if (source == null) {
+                return "章节「${chapter.title}」内容未缓存，且该书没有配置书源，无法下载。"
+            }
+
+            try {
+                content = runBlocking {
+                    CacheBook.getOrCreate(source, book).downloadAwait(chapter)
+                }
+            } catch (e: Exception) {
+                return "章节「${chapter.title}」下载失败: ${e.message}"
+            }
+
+            if (content.isNullOrBlank()) {
+                return "章节「${chapter.title}」下载后内容为空。"
+            }
+
+            BookHelp.saveText(book, chapter, content)
+        }
+
         val processed = try {
             contentProcessor?.getContent(book, chapter, content, useReplace = true)?.toString() ?: content
         } catch (e: Exception) { content }
