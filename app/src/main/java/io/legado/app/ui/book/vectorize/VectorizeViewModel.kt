@@ -15,13 +15,13 @@ class VectorizeViewModel(application: Application) : BaseViewModel(application) 
 
     var book: Book? = null
     private var vectorizer: BookVectorizer? = null
-    private val embeddingClient = MockEmbeddingClient()
 
     fun initBook(bookUrl: String) {
         execute {
             book = appDb.bookDao.getBook(bookUrl)
             book?.let { b ->
-                vectorizer = BookVectorizer(b, embeddingClient)
+                val client = EmbeddingManager.getClient(getApplication())
+                vectorizer = BookVectorizer(b, client)
                 loadChapters()
                 updateProgress()
             }

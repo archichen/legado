@@ -58,6 +58,9 @@ rhino = "1.8.1"
 #noinspection GradleDependency,NewerVersionAvailable
 media3 = "1.8.0"
 
+#ONNX Runtime
+onnxRuntime = "1.22.0"
+
 #noinspection GradleDependency
 webkit = "1.14.0"
 #noinspection GradleDependency
@@ -185,6 +188,8 @@ mozilla-rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
 
 renderscript-intrinsics-replacement-toolkit = { module = "com.github.TomasValenta:renderscript-intrinsics-replacement-toolkit", version = "8eaa829ddd" }
 zxing-lite = { module = "com.github.jenly1314:zxing-lite", version.ref = "zxingLite" }
+
+onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxRuntime" }
 
 [bundles]
 coroutines = ["kotlinx-coroutines-core", "kotlinx-coroutines-android"]

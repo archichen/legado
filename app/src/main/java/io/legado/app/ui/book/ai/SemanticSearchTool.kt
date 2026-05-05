@@ -4,15 +4,19 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.ui.book.vectorize.BookVectorizer
 import io.legado.app.ui.book.vectorize.EmbeddingClient
-import io.legado.app.ui.book.vectorize.MockEmbeddingClient
+import io.legado.app.ui.book.vectorize.EmbeddingManager
 import io.legado.app.ui.book.vectorize.cosineSimilarity
 import io.legado.app.ui.book.ai.ToolHelper.int
 import io.legado.app.ui.book.ai.ToolHelper.str
 import kotlinx.coroutines.runBlocking
+import splitties.init.appCtx
 
 class SemanticSearchTool(private val book: Book) {
 
-    private val embeddingClient: EmbeddingClient = MockEmbeddingClient()
+    private val embeddingClient: EmbeddingClient
+        get() = EmbeddingManager.getClientOrNull() ?: runBlocking {
+            EmbeddingManager.getClient(appCtx)
+        }
 
     fun getToolDefs(): List<OpenAIClient.ToolDef> = listOf(
         ToolHelper.buildToolDef(

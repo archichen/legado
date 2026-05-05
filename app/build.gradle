@@ -285,6 +285,9 @@ dependencies {
     implementation libs.firebase.analytics
     implementation libs.firebase.perf
 
+    //ONNX Runtime for embedding model
+    implementation libs.onnxruntime.android
+
     implementation libs.glide.recyclerview
 
     //LeakCanary, 内存泄露检测
