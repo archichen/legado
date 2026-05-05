@@ -165,10 +165,10 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
                     ivLocked.gone()
                 }
 
-                upHasCache(binding, isDur, cached)
+                upHasCache(binding, isDur, cached, item)
             } else {
                 tvChapterName.text = getDisplayTitle(item)
-                upHasCache(binding, isDur, cached)
+                upHasCache(binding, isDur, cached, item)
             }
         }
     }
@@ -187,13 +187,29 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
         }
     }
 
-    private fun upHasCache(binding: ItemChapterListBinding, isDur: Boolean, cached: Boolean) =
+    private fun upHasCache(binding: ItemChapterListBinding, isDur: Boolean, cached: Boolean, item: BookChapter) =
         binding.apply {
-            ivChecked.setImageResource(R.drawable.ic_outline_cloud_24)
-            ivChecked.visible(!cached)
-            if (isDur) {
-                ivChecked.setImageResource(R.drawable.ic_check)
-                ivChecked.visible()
+            when (item.vectorizeStatus) {
+                "completed" -> {
+                    ivChecked.setImageResource(R.drawable.ic_check)
+                    ivChecked.visible()
+                }
+                "processing" -> {
+                    ivChecked.setImageResource(R.drawable.ic_auto_page)
+                    ivChecked.visible()
+                }
+                "failed" -> {
+                    ivChecked.setImageResource(R.drawable.ic_bug_report)
+                    ivChecked.visible()
+                }
+                else -> {
+                    ivChecked.setImageResource(R.drawable.ic_outline_cloud_24)
+                    ivChecked.visible(!cached)
+                    if (isDur) {
+                        ivChecked.setImageResource(R.drawable.ic_check)
+                        ivChecked.visible()
+                    }
+                }
             }
         }
 

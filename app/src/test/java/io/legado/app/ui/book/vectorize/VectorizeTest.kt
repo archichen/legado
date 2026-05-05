@@ -199,4 +199,124 @@ class VectorizeTest {
         val progress = VectorizeProgress(100, 50, 50, 0, 0)
         assertEquals(false, progress.isRunning)
     }
+
+    @Test
+    fun testTextChunkerSingleSentence() {
+        val text = "只有一个句子。"
+        val chunks = TextChunker.chunkChapter(text, 0, "章")
+        assertEquals(1, chunks.size)
+        assertTrue(chunks[0].text.contains("只有一个句子"))
+    }
+
+    @Test
+    fun testTextChunkerNoPunctuation() {
+        val text = "没有标点符号的一段很长的文字用来测试没有标点的情况应该如何处理"
+        val chunks = TextChunker.chunkChapter(text, 0, "章")
+        assertTrue("Should produce at least one chunk", chunks.isNotEmpty())
+    }
+
+    @Test
+    fun testTextChunkerMixedPunctuation() {
+        val text = "中文句号。英文句号. 感叹号！问号？换行\n分号；逗号，"
+        val chunks = TextChunker.chunkChapter(text, 0, "章")
+        assertTrue("Should handle mixed punctuation", chunks.isNotEmpty())
+    }
+
+    @Test
+    fun testTextChunkerLongChapter() {
+        val sb = StringBuilder()
+        for (i in 1..100) {
+            sb.append("这是第${i}个句子，每个句子大约二十个字左右用来模拟真实的小说内容。")
+        }
+        val text = sb.toString()
+        val chunks = TextChunker.chunkChapter(text, 0, "长章节")
+        assertTrue("Long chapter should produce multiple chunks", chunks.size >= 3)
+        for (chunk in chunks) {
+            assertTrue("Chunk text should not be empty", chunk.text.isNotBlank())
+        }
+    }
+
+    @Test
+    fun testTextChunkerChunkIndexSequential() {
+        val sb = StringBuilder()
+        for (i in 1..50) {
+            sb.append("句子${i}。")
+        }
+        val chunks = TextChunker.chunkChapter(sb.toString(), 0, "章")
+        for (i in chunks.indices) {
+            assertEquals("Chunk index should be sequential", i, chunks[i].chunkIndex)
+        }
+    }
+
+    @Test
+    fun testTextChunkerChapterIndexPreserved() {
+        val chunks = TextChunker.chunkChapter("测试。", 42, "第四十三章")
+        assertEquals(42, chunks[0].chapterIndex)
+        assertEquals("第四十三章", chunks[0].chapterTitle)
+    }
+
+    @Test
+    fun testTextChunkerVeryLongSentence() {
+        val text = "A".repeat(1000) + "。"
+        val chunks = TextChunker.chunkChapter(text, 0, "章")
+        assertTrue("Very long sentence should still produce chunks", chunks.isNotEmpty())
+    }
+
+    @Test
+    fun testFloatByteArrayLargeVector() {
+        val original = FloatArray(512) { it.toFloat() * 0.001f }
+        val bytes = BookVectorizer.floatArrayToByteArray(original)
+        assertEquals(512 * 4, bytes.size)
+        val restored = BookVectorizer.byteArrayToFloatArray(bytes)
+        assertEquals(512, restored.size)
+        for (i in original.indices) {
+            assertEquals("Large vector should survive conversion", original[i], restored[i], 0.0001f)
+        }
+    }
+
+    @Test
+    fun testFloatByteArraySpecialValues() {
+        val original = floatArrayOf(Float.MAX_VALUE, Float.MIN_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
+        val bytes = BookVectorizer.floatArrayToByteArray(original)
+        val restored = BookVectorizer.byteArrayToFloatArray(bytes)
+        assertEquals(original.size, restored.size)
+        assertEquals(Float.MAX_VALUE, restored[0], 0f)
+        assertEquals(Float.MIN_VALUE, restored[1], 0f)
+        assertTrue(restored[2].isNaN())
+        assertEquals(Float.POSITIVE_INFINITY, restored[3], 0f)
+        assertEquals(Float.NEGATIVE_INFINITY, restored[4], 0f)
+    }
+
+    @Test
+    fun testCosineSimilarityNormalized() {
+        val a = floatArrayOf(0.5f, 0.5f, 0.5f, 0.5f)
+        val b = floatArrayOf(0.5f, 0.5f, 0.5f, 0.5f)
+        val sim = cosineSimilarity(a, b)
+        assertEquals(1.0f, sim, 0.001f)
+    }
+
+    @Test
+    fun testCosineSimilarityPartialMatch() {
+        val a = floatArrayOf(1f, 1f, 0f, 0f)
+        val b = floatArrayOf(1f, 0f, 0f, 0f)
+        val sim = cosineSimilarity(a, b)
+        assertTrue("Partial match should be between 0 and 1", sim > 0f && sim < 1f)
+    }
+
+    @Test
+    fun testMockEmbeddingSmallInput() {
+        val client = MockEmbeddingClient()
+        val vec = runBlocking { client.encode("a") }
+        assertEquals(384, vec.size)
+        var norm = 0f
+        for (v in vec) norm += v * v
+        assertEquals(1.0f, kotlin.math.sqrt(norm), 0.01f)
+    }
+
+    @Test
+    fun testMockEmbeddingChineseText() {
+        val client = MockEmbeddingClient()
+        val vec = runBlocking { client.encode("这是一段中文文本用于测试嵌入向量生成") }
+        assertEquals(384, vec.size)
+    }
 }
