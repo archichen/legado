@@ -39,6 +39,7 @@ object AgentFactory {
 你有多种工具可用，请根据问题类型选择合适的工具，不要反复使用同一个工具搜索相同内容：
 
 **内容搜索类：**
+- searchSemantic: 语义搜索，通过含义搜索书籍内容（需要先向量化）。适合模糊问题
 - searchContent: 搜索正文关键词/正则。如果搜不到，尝试换关键词、用正则、或扩大章节范围
 - getChapterContent: 直接读取指定章节全文或部分内容。当你知道大概在哪个章节时，直接读章节比搜索更高效
 - getTableOfContents: 查看目录结构，帮助定位章节
@@ -57,6 +58,19 @@ object AgentFactory {
 2. **合理组合工具**：先 getTableOfContents 了解结构，再 getChapterContent 读具体章节
 3. **搜索无果时如实告知**：如果多种方式都找不到，直接告诉用户"未找到相关内容"，并说明你尝试了哪些方法
 4. **基于已有信息回答**：如果找不到确切答案，可以根据书籍简介、章节标题等已有信息给出推测，但要明确标注"根据已有信息推测"
+
+## 语义搜索策略（重要！）
+searchSemantic 通过含义搜索，适合模糊问题（如"主角是怎么解决危机的"）。
+但返回的 chunk 是有损上下文的片段，需要进一步获取完整上下文：
+
+推荐工作流：
+1. searchSemantic(query) → 找到相关片段，确定在哪个章节
+2. 从片段中提取关键词（人名、事件、关键术语）
+3. searchContent(keyword, startChapter=X, endChapter=X) → 在该章节内精搜，获取行号
+4. getChapterContent(chapterIndex, startLine=N, endLine=M) → 读取完整段落获取上下文
+5. 基于完整上下文回答
+
+不要仅凭 chunk 片段回答——chunk 可能缺少关键的前后文。
 
 ## 输出格式
 请使用 Markdown 格式回答，善用：
@@ -86,12 +100,14 @@ object AgentFactory {
 
         val searchTool = BookSearchTool(book)
         val chapterTool = BookChapterTool(book)
+        val semanticTool = SemanticSearchTool(book)
         val markTool = BookMarkTool(book)
         val progressTool = BookProgressTool(book)
         val replaceTool = BookReplaceTool(book)
 
         val allToolDefs = searchTool.getToolDefs() +
             chapterTool.getToolDefs() +
+            semanticTool.getToolDefs() +
             markTool.getToolDefs() +
             progressTool.getToolDefs() +
             replaceTool.getToolDefs()
@@ -128,7 +144,7 @@ object AgentFactory {
                 coroutineContext.ensureActive()
                 callback?.onToolCall(tc.name, tc.arguments)
                 val result = try {
-                    executeTool(tc.name, tc.arguments, searchTool, chapterTool, markTool, progressTool, replaceTool)
+                    executeTool(tc.name, tc.arguments, searchTool, chapterTool, semanticTool, markTool, progressTool, replaceTool)
                 } catch (e: Exception) {
                     "工具执行错误: ${e.message}"
                 }
@@ -156,6 +172,7 @@ object AgentFactory {
         arguments: String,
         searchTool: BookSearchTool,
         chapterTool: BookChapterTool,
+        semanticTool: SemanticSearchTool,
         markTool: BookMarkTool,
         progressTool: BookProgressTool,
         replaceTool: BookReplaceTool
@@ -163,6 +180,7 @@ object AgentFactory {
         return when (name) {
             in searchTool.getToolDefs().map { it.name } -> searchTool.executeTool(name, arguments)
             in chapterTool.getToolDefs().map { it.name } -> chapterTool.executeTool(name, arguments)
+            in semanticTool.getToolDefs().map { it.name } -> semanticTool.executeTool(name, arguments)
             in markTool.getToolDefs().map { it.name } -> markTool.executeTool(name, arguments)
             in progressTool.getToolDefs().map { it.name } -> progressTool.executeTool(name, arguments)
             in replaceTool.getToolDefs().map { it.name } -> replaceTool.executeTool(name, arguments)

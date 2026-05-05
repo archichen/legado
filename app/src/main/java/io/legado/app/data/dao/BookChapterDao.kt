@@ -43,4 +43,16 @@ interface BookChapterDao {
     @Query("update chapters set wordCount = :wordCount where bookUrl = :bookUrl and url = :url")
     fun upWordCount(bookUrl: String, url: String, wordCount: String)
 
+    @Query("update chapters set vectorizeStatus = :status where bookUrl = :bookUrl and `index` = :chapterIndex")
+    fun upVectorizeStatus(bookUrl: String, chapterIndex: Int, status: String?)
+
+    @Query("select * from chapters where bookUrl = :bookUrl and vectorizeStatus = :status order by `index`")
+    fun getByVectorizeStatus(bookUrl: String, status: String): List<BookChapter>
+
+    @Query("select count(*) from chapters where bookUrl = :bookUrl and vectorizeStatus = 'completed'")
+    fun getVectorizedCount(bookUrl: String): Int
+
+    @Query("update chapters set vectorizeStatus = null where bookUrl = :bookUrl")
+    fun clearVectorizeStatus(bookUrl: String)
+
 }

@@ -92,6 +92,11 @@
     <string name="ai_chat_clear_confirm">Are you sure you want to clear all chat history for this book?</string>
     <string name="ai_thinking">Thinking...</string>
     <string name="ai_error">Error: %s</string>
+    <string name="vectorize">Vectorize</string>
+    <string name="vectorize_manage">Vectorization Management</string>
+    <string name="vectorize_start">Start</string>
+    <string name="vectorize_stop">Stop</string>
+    <string name="vectorize_clear">Clear</string>
     <string name="about">About</string>
     <string name="donate">Donations</string>
     <string name="exit">Exit</string>

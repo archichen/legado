@@ -11,6 +11,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import io.legado.app.data.dao.BookChapterDao
 import io.legado.app.data.dao.BookDao
+import io.legado.app.data.dao.BookEmbeddingDao
 import io.legado.app.data.dao.BookGroupDao
 import io.legado.app.data.dao.BookSourceDao
 import io.legado.app.data.dao.BookmarkDao
@@ -34,6 +35,7 @@ import io.legado.app.data.dao.ServerDao
 import io.legado.app.data.dao.TxtTocRuleDao
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
+import io.legado.app.data.entities.BookEmbedding
 import io.legado.app.data.entities.BookGroup
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
@@ -71,14 +73,14 @@ val appDb by lazy {
 }
 
 @Database(
-    version = 76,
+    version = 77,
     exportSchema = true,
     entities = [Book::class, BookGroup::class, BookSource::class, BookChapter::class,
         ReplaceRule::class, SearchBook::class, SearchKeyword::class, Cookie::class,
         RssSource::class, Bookmark::class, RssArticle::class, RssReadRecord::class,
         RssStar::class, TxtTocRule::class, ReadRecord::class, HttpTTS::class, Cache::class,
         RuleSub::class, DictRule::class, KeyboardAssist::class, Server::class,
-        LLMProvider::class, ChatMessage::class],
+        LLMProvider::class, ChatMessage::class, BookEmbedding::class],
     views = [BookSourcePart::class],
     autoMigrations = [
         AutoMigration(from = 43, to = 44),
@@ -114,6 +116,7 @@ val appDb by lazy {
         AutoMigration(from = 73, to = 74),
         AutoMigration(from = 74, to = 75),
         AutoMigration(from = 75, to = 76),
+        AutoMigration(from = 76, to = 77),
     ]
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -141,6 +144,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val serverDao: ServerDao
     abstract val llmProviderDao: LLMProviderDao
     abstract val chatMessageDao: ChatMessageDao
+    abstract val bookEmbeddingDao: BookEmbeddingDao
 
     companion object {
 

@@ -198,6 +198,10 @@
         <activity
             android:name=".ui.config.llm.LLMProviderActivity"
             android:launchMode="standard" />
+        <!-- 向量化管理 -->
+        <activity
+            android:name=".ui.book.vectorize.VectorizeActivity"
+            android:launchMode="standard" />
         <!-- 搜索界面 -->
         <activity
             android:name=".ui.book.search.SearchActivity"

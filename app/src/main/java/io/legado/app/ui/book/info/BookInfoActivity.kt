@@ -477,6 +477,13 @@ class BookInfoActivity :
                 showDialogFragment(ChangeBookSourceDialog(book.name, book.author))
             }
         }
+        ivVectorize?.setOnClickListener {
+            viewModel.getBook()?.let { book ->
+                startActivity<io.legado.app.ui.book.vectorize.VectorizeActivity> {
+                    putExtra("bookUrl", book.bookUrl)
+                }
+            }
+        }
         tvTocView.setOnClickListener {
             if (viewModel.chapterListData.value.isNullOrEmpty()) {
                 toastOnUi(R.string.chapter_list_empty)
