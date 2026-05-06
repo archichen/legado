@@ -4,6 +4,8 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookEmbedding
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.isLocal
+import io.legado.app.model.CacheBook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -18,6 +20,7 @@ class BookVectorizer(
         fun onProgress(chapterIndex: Int, totalChapters: Int, status: String)
         fun onChapterComplete(chapterIndex: Int, chunkCount: Int)
         fun onChapterFailed(chapterIndex: Int, error: String)
+        fun onEncodingProgress(chapterIndex: Int, currentChunk: Int, totalChunks: Int)
     }
 
     var isCancelled = false
@@ -57,7 +60,24 @@ class BookVectorizer(
                     return@withContext
                 }
 
-                val content = BookHelp.getContent(book, chapter)
+                var content = BookHelp.getContent(book, chapter)
+
+                if (content.isNullOrBlank() && !book.isLocal) {
+                    val source = appDb.bookSourceDao.getBookSource(book.origin)
+                    if (source != null) {
+                        try {
+                            content = CacheBook.getOrCreate(source, book).downloadAwait(chapter)
+                            if (!content.isNullOrBlank()) {
+                                BookHelp.saveText(book, chapter, content)
+                            }
+                        } catch (e: Exception) {
+                            appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "failed")
+                            callback?.onChapterFailed(idx, "下载失败: ${e.message}")
+                            continue
+                        }
+                    }
+                }
+
                 if (content.isNullOrBlank()) {
                     appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
                     callback?.onChapterComplete(idx, 0)
@@ -73,17 +93,26 @@ class BookVectorizer(
 
                 appDb.bookEmbeddingDao.deleteByChapter(book.bookUrl, chapter.index)
 
-                val texts = chunks.map { it.text }
-                val vectors = embeddingClient.encodeBatch(texts)
+                val embeddings = mutableListOf<BookEmbedding>()
+                for ((chunkIdx, chunk) in chunks.withIndex()) {
+                    coroutineContext.ensureActive()
+                    if (isCancelled) {
+                        appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "pending")
+                        return@withContext
+                    }
 
-                val embeddings = chunks.zip(vectors).map { (chunk, vector) ->
-                    BookEmbedding(
-                        bookUrl = book.bookUrl,
-                        chapterIndex = chunk.chapterIndex,
-                        chunkIndex = chunk.chunkIndex,
-                        chapterTitle = chunk.chapterTitle,
-                        text = chunk.text,
-                        vector = floatArrayToByteArray(vector)
+                    callback?.onEncodingProgress(idx, chunkIdx + 1, chunks.size)
+
+                    val vector = embeddingClient.encode(chunk.text)
+                    embeddings.add(
+                        BookEmbedding(
+                            bookUrl = book.bookUrl,
+                            chapterIndex = chunk.chapterIndex,
+                            chunkIndex = chunk.chunkIndex,
+                            chapterTitle = chunk.chapterTitle,
+                            text = chunk.text,
+                            vector = floatArrayToByteArray(vector)
+                        )
                     )
                 }
 

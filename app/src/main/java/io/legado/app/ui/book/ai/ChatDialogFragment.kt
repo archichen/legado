@@ -139,7 +139,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                         )
                     }
                 if (messages.isNotEmpty()) {
-                    binding.recyclerView.scrollToPosition(messages.size - 1)
+                    _binding?.recyclerView?.scrollToPosition(messages.size - 1)
                 }
             }
         }
@@ -170,7 +170,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 )
             }
 
-            binding.etInput.isEnabled = false
+            _binding?.etInput?.isEnabled = false
             setStopMode()
 
             try {
@@ -189,7 +189,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                                         content = thinking.take(200)
                                     )
                                     adapter.submitList(adapter.currentList + thinkingMsg)
-                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
                                 }
                             }
 
@@ -201,7 +201,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                                         content = "$toolName($arguments)"
                                     )
                                     adapter.submitList(adapter.currentList + toolCallMsg)
-                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
                                 }
                             }
 
@@ -213,7 +213,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                                         content = result.take(200)
                                     )
                                     adapter.submitList(adapter.currentList + resultMsg)
-                                    binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
                                 }
                             }
                         }
@@ -241,8 +241,8 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 }
             } finally {
                 currentJob = null
-                binding.etInput.isEnabled = true
-                setSendMode()
+                _binding?.etInput?.isEnabled = true
+                _binding?.let { setSendMode() }
             }
         }
     }
@@ -255,8 +255,10 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 appDb.chatMessageDao.deleteByBook(bookUrl)
             }
             chatHistory = emptyList()
-            setSendMode()
-            binding.etInput.isEnabled = true
+            _binding?.let {
+                setSendMode()
+                it.etInput.isEnabled = true
+            }
         }
     }
 

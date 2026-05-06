@@ -67,6 +67,10 @@ class VectorizeViewModel(application: Application) : BaseViewModel(application) 
                     loadChapters()
                     updateProgress()
                 }
+
+                override fun onEncodingProgress(chapterIndex: Int, currentChunk: Int, totalChunks: Int) {
+                    statusMessage.postValue("第 ${chapterIndex + 1} 章: 编码 $currentChunk/$totalChunks 个片段...")
+                }
             })
 
             if (v.isCancelled) {
