@@ -94,6 +94,7 @@ core-core = { module = "androidx.core:core", version.ref = "core" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "core" }
 
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version = "3.6.1" }
+androidx-espresso-intents = { module = "androidx.test.espresso:espresso-intents", version = "3.6.1" }
 
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
@@ -193,7 +194,7 @@ onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android"
 
 [bundles]
 coroutines = ["kotlinx-coroutines-core", "kotlinx-coroutines-android"]
-androidTest = ["androidx-espresso-core", "androidx-junit", "androidx-runner"]
+androidTest = ["androidx-espresso-core", "androidx-espresso-intents", "androidx-junit", "androidx-runner"]
 
 [plugins]
 
