@@ -4,6 +4,7 @@ import android.content.Context
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import io.legado.app.constant.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -26,24 +27,33 @@ class OnnxEmbeddingClient(
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         if (initialized) return@withContext
 
+        AppLog.put("ONNX: 开始初始化 embedding 模型...")
+        val startTime = System.currentTimeMillis()
+
         ortEnv = OrtEnvironment.getEnvironment()
 
         val modelPath = copyAssetToCache("models/bge-small-zh/model_quantized.onnx")
         val dataPath = copyAssetToCache("models/bge-small-zh/model_quantized.onnx_data")
+        AppLog.put("ONNX: 模型文件已复制到 cache, model=${File(modelPath).length()}bytes")
 
         val sessionOptions = OrtSession.SessionOptions()
         sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
         sessionOptions.setIntraOpNumThreads(4)
 
         ortSession = ortEnv!!.createSession(modelPath, sessionOptions)
+        AppLog.put("ONNX: OrtSession 创建完成, 耗时 ${System.currentTimeMillis() - startTime}ms")
+
         tokenizer = BertTokenizer(context)
+        AppLog.put("ONNX: Tokenizer 加载完成")
 
         initialized = true
+        AppLog.put("ONNX: 初始化完成, 总耗时 ${System.currentTimeMillis() - startTime}ms, dimension=$dimension")
     }
 
     override suspend fun encode(text: String): FloatArray = withContext(Dispatchers.IO) {
         check(initialized) { "OnnxEmbeddingClient not initialized" }
 
+        val startTime = System.currentTimeMillis()
         val tokenized = tokenizer!!.encode(text)
         val maxLen = tokenized.actualLength
 
@@ -73,19 +83,29 @@ class OnnxEmbeddingClient(
                     if (batch.isNotEmpty() && batch[0] is FloatArray) {
                         meanPooling(batch as Array<FloatArray>, attentionMask)
                     } else {
+                        AppLog.put("ONNX: 意外的输出格式 (batch[0]不是FloatArray)")
                         FloatArray(dimension)
                     }
                 } else {
+                    AppLog.put("ONNX: 意外的输出格式 (output[0]不是Array)")
                     FloatArray(dimension)
                 }
             }
-            else -> FloatArray(dimension)
+            else -> {
+                AppLog.put("ONNX: 意外的输出类型: ${output?.javaClass?.name}")
+                FloatArray(dimension)
+            }
         }
 
         inputIdsTensor.close()
         attentionMaskTensor.close()
         tokenTypeIdsTensor.close()
         results.close()
+
+        val elapsed = System.currentTimeMillis() - startTime
+        if (elapsed > 100) {
+            AppLog.put("ONNX: encode 耗时 ${elapsed}ms, tokens=$maxLen, text=${text.take(30)}...")
+        }
 
         normalize(embedding)
     }

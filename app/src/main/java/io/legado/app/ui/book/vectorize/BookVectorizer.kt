@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.vectorize
 
+import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookEmbedding
@@ -31,25 +32,36 @@ class BookVectorizer(
     }
 
     suspend fun vectorize(callback: Callback? = null) = withContext(Dispatchers.IO) {
+        AppLog.put("Vectorize: 开始向量化《${book.name}》")
+
         if (!embeddingClient.isReady()) {
+            AppLog.put("Vectorize: 初始化 embedding 客户端...")
             embeddingClient.initialize()
+            AppLog.put("Vectorize: embedding 客户端初始化完成, ready=${embeddingClient.isReady()}")
         }
 
         val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
-        if (chapters.isEmpty()) return@withContext
+        if (chapters.isEmpty()) {
+            AppLog.put("Vectorize: 章节列表为空，退出")
+            return@withContext
+        }
 
         val totalChapters = chapters.size
+        AppLog.put("Vectorize: 共 $totalChapters 章待处理")
 
         for ((idx, chapter) in chapters.withIndex()) {
             coroutineContext.ensureActive()
-            if (isCancelled) return@withContext
+            if (isCancelled) {
+                AppLog.put("Vectorize: 用户取消，停止于第${idx}章")
+                return@withContext
+            }
 
             val existingStatus = chapter.vectorizeStatus
             if (existingStatus == "completed") {
-                callback?.onProgress(idx, totalChapters, "skipped")
                 continue
             }
 
+            AppLog.put("Vectorize: 处理第${idx+1}/${totalChapters}章「${chapter.title}」")
             appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "processing")
             callback?.onProgress(idx, totalChapters, "processing")
 
@@ -63,28 +75,36 @@ class BookVectorizer(
                 var content = BookHelp.getContent(book, chapter)
 
                 if (content.isNullOrBlank() && !book.isLocal) {
+                    AppLog.put("Vectorize: 第${idx+1}章内容未缓存，尝试下载...")
                     val source = appDb.bookSourceDao.getBookSource(book.origin)
                     if (source != null) {
                         try {
                             content = CacheBook.getOrCreate(source, book).downloadAwait(chapter)
                             if (!content.isNullOrBlank()) {
                                 BookHelp.saveText(book, chapter, content)
+                                AppLog.put("Vectorize: 第${idx+1}章下载成功, ${content.length}字")
                             }
                         } catch (e: Exception) {
+                            AppLog.put("Vectorize: 第${idx+1}章下载失败: ${e.message}")
                             appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "failed")
                             callback?.onChapterFailed(idx, "下载失败: ${e.message}")
                             continue
                         }
+                    } else {
+                        AppLog.put("Vectorize: 无书源，跳过第${idx+1}章")
                     }
                 }
 
                 if (content.isNullOrBlank()) {
+                    AppLog.put("Vectorize: 第${idx+1}章内容为空，标记完成")
                     appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
                     callback?.onChapterComplete(idx, 0)
                     continue
                 }
 
                 val chunks = TextChunker.chunkChapter(content, chapter.index, chapter.title)
+                AppLog.put("Vectorize: 第${idx+1}章分块完成, ${chunks.size}个chunk")
+
                 if (chunks.isEmpty()) {
                     appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
                     callback?.onChapterComplete(idx, 0)
@@ -98,12 +118,16 @@ class BookVectorizer(
                     coroutineContext.ensureActive()
                     if (isCancelled) {
                         appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "pending")
+                        AppLog.put("Vectorize: 用户取消于第${idx+1}章 chunk $chunkIdx")
                         return@withContext
                     }
 
                     callback?.onEncodingProgress(idx, chunkIdx + 1, chunks.size)
 
+                    val startTime = System.currentTimeMillis()
                     val vector = embeddingClient.encode(chunk.text)
+                    val elapsed = System.currentTimeMillis() - startTime
+
                     embeddings.add(
                         BookEmbedding(
                             bookUrl = book.bookUrl,
@@ -118,6 +142,7 @@ class BookVectorizer(
 
                 appDb.bookEmbeddingDao.insertAll(embeddings)
                 appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
+                AppLog.put("Vectorize: 第${idx+1}章完成, ${chunks.size}个chunk已存储")
                 callback?.onChapterComplete(idx, chunks.size)
 
             } catch (e: Exception) {
@@ -126,10 +151,13 @@ class BookVectorizer(
                     appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "pending")
                     return@withContext
                 }
+                AppLog.put("Vectorize: 第${idx+1}章异常: ${e.message}", e)
                 appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "failed")
                 callback?.onChapterFailed(idx, e.message ?: "Unknown error")
             }
         }
+
+        AppLog.put("Vectorize: 向量化完成《${book.name}》")
     }
 
     suspend fun clearAll() = withContext(Dispatchers.IO) {

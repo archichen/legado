@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.ai
 
+import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.LLMProvider
@@ -96,6 +97,9 @@ searchSemantic 通过含义搜索，适合模糊问题（如"主角是怎么解�
         userMessage: String,
         callback: Callback? = null
     ): Pair<String, List<OpenAIClient.ChatMsg>> {
+        AppLog.put("Agent: 开始对话《${book.name}》provider=${provider.name} model=${provider.modelName}")
+        AppLog.put("Agent: 用户问题: ${userMessage.take(100)}")
+
         val client = OpenAIClient(provider.baseUrl, provider.apiKey, provider.modelName)
 
         val searchTool = BookSearchTool(book)
@@ -122,17 +126,22 @@ searchSemantic 通过含义搜索，适合模糊问题（如"主角是怎么解�
         for (iteration in 0 until 20) {
             coroutineContext.ensureActive()
 
+            AppLog.put("Agent: 第${iteration+1}轮迭代, messages=${allMessages.size}")
             val response = client.chat(allMessages, allToolDefs)
 
             if (response.reasoningContent != null) {
+                AppLog.put("Agent: 思考中... ${response.reasoningContent.take(100)}")
                 callback?.onThinking(response.reasoningContent)
             }
 
             if (response.toolCalls.isNullOrEmpty()) {
                 val content = response.content ?: "无法生成回复。"
                 allMessages.add(OpenAIClient.ChatMsg("assistant", content))
+                AppLog.put("Agent: 最终回复(${iteration+1}轮): ${content.take(100)}")
                 return content to allMessages.drop(1)
             }
+
+            AppLog.put("Agent: 模型请求调用 ${response.toolCalls.size} 个工具")
 
             allMessages.add(OpenAIClient.ChatMsg(
                 role = "assistant",
@@ -142,12 +151,15 @@ searchSemantic 通过含义搜索，适合模糊问题（如"主角是怎么解�
 
             for (tc in response.toolCalls) {
                 coroutineContext.ensureActive()
+                AppLog.put("Agent: 执行工具 ${tc.name}(${tc.arguments.take(80)})")
                 callback?.onToolCall(tc.name, tc.arguments)
                 val result = try {
                     executeTool(tc.name, tc.arguments, searchTool, chapterTool, semanticTool, markTool, progressTool, replaceTool)
                 } catch (e: Exception) {
+                    AppLog.put("Agent: 工具 ${tc.name} 异常: ${e.message}", e)
                     "工具执行错误: ${e.message}"
                 }
+                AppLog.put("Agent: 工具 ${tc.name} 结果: ${result.take(100)}")
                 callback?.onToolResult(tc.name, result)
                 allMessages.add(OpenAIClient.ChatMsg(
                     role = "tool",

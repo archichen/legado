@@ -12,13 +12,13 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import io.legado.app.R
+import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.ChatMessage
 import io.legado.app.data.entities.LLMProvider
 import io.legado.app.databinding.DialogChatBinding
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,8 +30,6 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
     private var bookUrl: String = ""
     private val adapter = ChatAdapter()
     private var provider: LLMProvider? = null
-    private var chatHistory = listOf<OpenAIClient.ChatMsg>()
-    private var currentJob: Job? = null
 
     companion object {
         private const val TAG = "ChatDialogFragment"
@@ -50,6 +48,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bookUrl = arguments?.getString(ARG_BOOK_URL) ?: ""
+        AppLog.put("ChatDialog: onCreate bookUrl=$bookUrl")
     }
 
     override fun onCreateView(
@@ -66,6 +65,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         initRecyclerView()
         initInput()
         observeMessages()
+        observeAgentStatus()
         loadProvider()
     }
 
@@ -84,45 +84,28 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
     }
 
     private fun initInput() {
-        binding.btnSend.setOnClickListener {
-            val message = binding.etInput.text.toString().trim()
-            if (message.isNotEmpty()) {
-                sendMessage(message)
-                binding.etInput.text?.clear()
-            }
-        }
+        updateButtonState()
         binding.btnClear.setOnClickListener {
             clearHistory()
         }
     }
 
-    private fun setSendMode() {
-        binding.btnSend.text = getString(R.string.ai_chat_send)
-        binding.btnSend.setOnClickListener {
-            val message = binding.etInput.text.toString().trim()
-            if (message.isNotEmpty()) {
-                sendMessage(message)
-                binding.etInput.text?.clear()
+    private fun updateButtonState() {
+        val isRunning = ChatAgentManager.isActive()
+        _binding?.let { b ->
+            b.btnSend.text = if (isRunning) getString(R.string.ai_chat_stop) else getString(R.string.ai_chat_send)
+            b.btnSend.setOnClickListener {
+                if (isRunning) {
+                    ChatAgentManager.cancel()
+                } else {
+                    val message = b.etInput.text.toString().trim()
+                    if (message.isNotEmpty()) {
+                        sendMessage(message)
+                        b.etInput.text?.clear()
+                    }
+                }
             }
-        }
-    }
-
-    private fun setStopMode() {
-        binding.btnSend.text = getString(R.string.ai_chat_stop)
-        binding.btnSend.setOnClickListener {
-            currentJob?.cancel()
-            currentJob = null
-            setSendMode()
-            binding.etInput.isEnabled = true
-            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-                appDb.chatMessageDao.insert(
-                    ChatMessage(
-                        bookUrl = bookUrl,
-                        role = ChatMessage.ROLE_ASSISTANT,
-                        content = "（用户已终止）"
-                    )
-                )
-            }
+            b.etInput.isEnabled = !isRunning
         }
     }
 
@@ -130,17 +113,18 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             appDb.chatMessageDao.observeByBook(bookUrl).collectLatest { messages ->
                 adapter.submitList(messages)
-                chatHistory = messages
-                    .filter { it.role == ChatMessage.ROLE_USER || it.role == ChatMessage.ROLE_ASSISTANT }
-                    .map { msg ->
-                        OpenAIClient.ChatMsg(
-                            role = msg.role,
-                            content = msg.content
-                        )
-                    }
                 if (messages.isNotEmpty()) {
                     _binding?.recyclerView?.scrollToPosition(messages.size - 1)
                 }
+            }
+        }
+    }
+
+    private fun observeAgentStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            ChatAgentManager.status.collectLatest { status ->
+                _binding?.tvStatus?.text = status
+                updateButtonState()
             }
         }
     }
@@ -163,108 +147,61 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
             return
         }
 
-        currentJob = viewLifecycleOwner.lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                appDb.chatMessageDao.insert(
-                    ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_USER, content = content)
-                )
-            }
-
-            _binding?.etInput?.isEnabled = false
-            setStopMode()
-
-            try {
-                val book = withContext(Dispatchers.IO) {
-                    appDb.bookDao.getBook(bookUrl)
-                } ?: return@launch
-
-                val (response, newHistory) = withContext(Dispatchers.IO) {
-                    AgentFactory.chat(currentProvider, book, chatHistory, content,
-                        object : AgentFactory.Callback {
-                            override fun onThinking(thinking: String) {
-                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                                    val thinkingMsg = ChatMessage(
-                                        bookUrl = bookUrl,
-                                        role = ChatMessage.ROLE_THINKING,
-                                        content = thinking.take(200)
-                                    )
-                                    adapter.submitList(adapter.currentList + thinkingMsg)
-                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                                }
-                            }
-
-                            override fun onToolCall(toolName: String, arguments: String) {
-                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                                    val toolCallMsg = ChatMessage(
-                                        bookUrl = bookUrl,
-                                        role = ChatMessage.ROLE_TOOL_CALL,
-                                        content = "$toolName($arguments)"
-                                    )
-                                    adapter.submitList(adapter.currentList + toolCallMsg)
-                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                                }
-                            }
-
-                            override fun onToolResult(toolName: String, result: String) {
-                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                                    val resultMsg = ChatMessage(
-                                        bookUrl = bookUrl,
-                                        role = ChatMessage.ROLE_TOOL_RESULT,
-                                        content = result.take(200)
-                                    )
-                                    adapter.submitList(adapter.currentList + resultMsg)
-                                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                                }
-                            }
-                        }
-                    )
-                }
-
-                chatHistory = newHistory
-
-                withContext(Dispatchers.IO) {
-                    appDb.chatMessageDao.insert(
-                        ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_ASSISTANT, content = response)
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) return@launch
-                val errorMsg = e.message ?: "Unknown error"
-                withContext(Dispatchers.IO) {
-                    appDb.chatMessageDao.insert(
-                        ChatMessage(
+        ChatAgentManager.sendMessage(
+            bookUrl = bookUrl,
+            content = content,
+            provider = currentProvider,
+            callback = object : AgentFactory.Callback {
+                override fun onThinking(thinking: String) {
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                        val thinkingMsg = ChatMessage(
                             bookUrl = bookUrl,
-                            role = ChatMessage.ROLE_ASSISTANT,
-                            content = "错误: $errorMsg"
+                            role = ChatMessage.ROLE_THINKING,
+                            content = thinking.take(200)
                         )
-                    )
+                        adapter.submitList(adapter.currentList + thinkingMsg)
+                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
+                    }
                 }
-            } finally {
-                currentJob = null
-                _binding?.etInput?.isEnabled = true
-                _binding?.let { setSendMode() }
+
+                override fun onToolCall(toolName: String, arguments: String) {
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                        val toolCallMsg = ChatMessage(
+                            bookUrl = bookUrl,
+                            role = ChatMessage.ROLE_TOOL_CALL,
+                            content = "$toolName($arguments)"
+                        )
+                        adapter.submitList(adapter.currentList + toolCallMsg)
+                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
+                    }
+                }
+
+                override fun onToolResult(toolName: String, result: String) {
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                        val resultMsg = ChatMessage(
+                            bookUrl = bookUrl,
+                            role = ChatMessage.ROLE_TOOL_RESULT,
+                            content = result.take(200)
+                        )
+                        adapter.submitList(adapter.currentList + resultMsg)
+                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
+                    }
+                }
             }
-        }
+        )
     }
 
     private fun clearHistory() {
-        currentJob?.cancel()
-        currentJob = null
         viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 appDb.chatMessageDao.deleteByBook(bookUrl)
             }
-            chatHistory = emptyList()
-            _binding?.let {
-                setSendMode()
-                it.etInput.isEnabled = true
-            }
+            AppLog.put("ChatDialog: 清除历史 bookUrl=$bookUrl")
         }
     }
 
     override fun onDestroyView() {
-        currentJob?.cancel()
-        currentJob = null
+        AppLog.put("ChatDialog: onDestroyView, agent仍在运行=${ChatAgentManager.isActive()}")
         super.onDestroyView()
         _binding = null
     }

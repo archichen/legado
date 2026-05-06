@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import io.legado.app.constant.AppLog
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -34,6 +35,8 @@ class OpenAIClient(
         val body = buildRequestBody(messages, tools)
         val url = "${baseUrl.trimEnd('/')}/chat/completions"
 
+        AppLog.put("API: 请求 $modelName, messages=${messages.size}, tools=${tools?.size ?: 0}")
+
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
@@ -41,6 +44,7 @@ class OpenAIClient(
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
+        val startTime = System.currentTimeMillis()
         val responseBody = suspendCancellableCoroutine<String> { cont ->
             val call = client.newCall(request)
 
@@ -75,6 +79,9 @@ class OpenAIClient(
                 }
             })
         }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        AppLog.put("API: 响应耗时 ${elapsed}ms, 长度=${responseBody.length}")
 
         return parseResponse(responseBody)
     }

@@ -17,8 +17,10 @@ import io.legado.app.databinding.ItemAppLogBinding
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.utils.LogUtils
+import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import splitties.views.onClick
 import java.util.*
@@ -53,6 +55,14 @@ class AppLogDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
             R.id.menu_clear -> {
                 AppLog.clear()
                 adapter.clearItems()
+            }
+            R.id.menu_copy -> {
+                val logText = AppLog.logs.joinToString("\n") { (time, message, _) ->
+                    val timeStr = LogUtils.logTimeFormat.format(Date(time))
+                    "[$timeStr] $message"
+                }
+                requireContext().sendToClip(logText)
+                toastOnUi("日志已复制到剪贴板")
             }
         }
         return true
