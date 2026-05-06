@@ -69,15 +69,27 @@ object ChatAgentManager {
                 val (response, _) = AgentFactory.chat(provider, book, history, content,
                     object : AgentFactory.Callback {
                         override fun onThinking(thinking: String) {
-                            _events.tryEmit(AgentEvent(bookUrl, "thinking", thinking.take(200)))
+                            val msg = thinking.take(200)
+                            _events.tryEmit(AgentEvent(bookUrl, "thinking", msg))
+                            appDb.chatMessageDao.insert(
+                                ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_THINKING, content = msg)
+                            )
                         }
 
                         override fun onToolCall(toolName: String, arguments: String) {
-                            _events.tryEmit(AgentEvent(bookUrl, "tool_call", "$toolName($arguments)"))
+                            val msg = "$toolName(${arguments.take(100)})"
+                            _events.tryEmit(AgentEvent(bookUrl, "tool_call", msg))
+                            appDb.chatMessageDao.insert(
+                                ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_TOOL_CALL, content = msg)
+                            )
                         }
 
                         override fun onToolResult(toolName: String, result: String) {
-                            _events.tryEmit(AgentEvent(bookUrl, "tool_result", result.take(200)))
+                            val msg = result.take(200)
+                            _events.tryEmit(AgentEvent(bookUrl, "tool_result", msg))
+                            appDb.chatMessageDao.insert(
+                                ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_TOOL_RESULT, content = msg)
+                            )
                         }
                     }
                 )
@@ -87,6 +99,7 @@ object ChatAgentManager {
                 )
 
                 _status.value = "完成"
+                _events.tryEmit(AgentEvent(bookUrl, "done", response.take(100)))
                 AppLog.put("ChatAgent: 对话完成, 回复长度=${response.length}")
 
             } catch (e: Exception) {

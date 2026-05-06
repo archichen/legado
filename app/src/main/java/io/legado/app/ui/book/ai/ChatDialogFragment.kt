@@ -130,18 +130,9 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             ChatAgentManager.events.collectLatest { event ->
                 if (event.bookUrl == bookUrl) {
-                    val msg = ChatMessage(
-                        bookUrl = bookUrl,
-                        role = when (event.type) {
-                            "thinking" -> ChatMessage.ROLE_THINKING
-                            "tool_call" -> ChatMessage.ROLE_TOOL_CALL
-                            "tool_result" -> ChatMessage.ROLE_TOOL_RESULT
-                            else -> ChatMessage.ROLE_ASSISTANT
-                        },
-                        content = event.content
-                    )
-                    adapter.submitList(adapter.currentList + msg)
-                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
+                    if (event.type == "done") {
+                        toastOnUi("AI 回复完成")
+                    }
                 }
             }
         }
