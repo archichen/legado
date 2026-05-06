@@ -207,7 +207,8 @@
         <!-- 向量化后台服务 -->
         <service
             android:name=".service.EmbeddingService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- 搜索界面 -->
         <activity
             android:name=".ui.book.search.SearchActivity"
