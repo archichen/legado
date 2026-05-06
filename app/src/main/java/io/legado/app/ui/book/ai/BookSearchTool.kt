@@ -2,11 +2,18 @@ package io.legado.app.ui.book.ai
 
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.ui.book.ai.ToolHelper.bool
 import io.legado.app.ui.book.ai.ToolHelper.int
 import io.legado.app.ui.book.ai.ToolHelper.str
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class BookSearchTool(private val book: Book) {
 
@@ -71,30 +78,49 @@ class BookSearchTool(private val book: Book) {
             try { Regex(keyword) } catch (e: Exception) { return "正则表达式格式错误: ${e.message}" }
         } else null
 
-        val results = mutableListOf<String>()
-        var count = 0
+        val results = runBlocking {
+            val semaphore = Semaphore(8)
+            val resultsList = mutableListOf<Pair<Int, String>>()
 
-        for (chapter in chapters) {
-            if (count >= limit) break
-            val content = BookHelp.getContent(book, chapter) ?: continue
-            val processed = try {
-                contentProcessor?.getContent(book, chapter, content, useReplace = true)?.toString() ?: content
-            } catch (e: Exception) { content }
-
-            val lines = processed.lines()
-            for ((lineIdx, line) in lines.withIndex()) {
-                if (count >= limit) break
-                val matched = if (regex != null) regex.containsMatchIn(line) else line.contains(keyword, ignoreCase = true)
-                if (matched) {
-                    val lineNum = lineIdx + 1
-                    val snippet = line.trim().take(100)
-                    results.add("[第${chapter.index + 1}章「${chapter.title}」 第${lineNum}行] $snippet")
-                    count++
+            val jobs = chapters.map { chapter ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        searchChapter(chapter, keyword, regex)
+                    }
                 }
             }
+
+            val allResults = jobs.awaitAll().flatten()
+            resultsList.addAll(allResults.sortedBy { it.first }.take(limit))
+            resultsList
         }
 
         if (results.isEmpty()) return "未找到包含「$keyword」的内容。"
-        return "找到 ${results.size} 个匹配结果：\n\n" + results.joinToString("\n")
+        return "找到 ${results.size} 个匹配结果：\n\n" + results.joinToString("\n") { it.second }
+    }
+
+    private fun searchChapter(
+        chapter: BookChapter,
+        keyword: String,
+        regex: Regex?
+    ): List<Pair<Int, String>> {
+        val results = mutableListOf<Pair<Int, String>>()
+        val content = BookHelp.getContent(book, chapter) ?: return results
+        val processed = try {
+            contentProcessor?.getContent(book, chapter, content, useReplace = true)?.toString() ?: content
+        } catch (e: Exception) { content }
+
+        val lines = processed.lines()
+        for ((lineIdx, line) in lines.withIndex()) {
+            val matched = if (regex != null) regex.containsMatchIn(line) else line.contains(keyword, ignoreCase = true)
+            if (matched) {
+                val lineNum = lineIdx + 1
+                val snippet = line.trim().take(100)
+                results.add(
+                    chapter.index to "[第${chapter.index + 1}章「${chapter.title}」 第${lineNum}行] $snippet"
+                )
+            }
+        }
+        return results
     }
 }

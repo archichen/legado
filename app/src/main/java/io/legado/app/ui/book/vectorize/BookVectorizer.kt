@@ -105,6 +105,8 @@ class BookVectorizer(
                 val chunks = TextChunker.chunkChapter(content, chapter.index, chapter.title)
                 AppLog.put("Vectorize: 第${idx+1}章分块完成, ${chunks.size}个chunk")
 
+                content = null
+
                 if (chunks.isEmpty()) {
                     appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
                     callback?.onChapterComplete(idx, 0)
@@ -113,7 +115,8 @@ class BookVectorizer(
 
                 appDb.bookEmbeddingDao.deleteByChapter(book.bookUrl, chapter.index)
 
-                val embeddings = mutableListOf<BookEmbedding>()
+                val batchSize = 10
+                var insertedCount = 0
                 for ((chunkIdx, chunk) in chunks.withIndex()) {
                     coroutineContext.ensureActive()
                     if (isCancelled) {
@@ -124,26 +127,26 @@ class BookVectorizer(
 
                     callback?.onEncodingProgress(idx, chunkIdx + 1, chunks.size)
 
-                    val startTime = System.currentTimeMillis()
                     val vector = embeddingClient.encode(chunk.text)
-                    val elapsed = System.currentTimeMillis() - startTime
-
-                    embeddings.add(
-                        BookEmbedding(
-                            bookUrl = book.bookUrl,
-                            chapterIndex = chunk.chapterIndex,
-                            chunkIndex = chunk.chunkIndex,
-                            chapterTitle = chunk.chapterTitle,
-                            text = chunk.text,
-                            vector = floatArrayToByteArray(vector)
-                        )
+                    val embedding = BookEmbedding(
+                        bookUrl = book.bookUrl,
+                        chapterIndex = chunk.chapterIndex,
+                        chunkIndex = chunk.chunkIndex,
+                        chapterTitle = chunk.chapterTitle,
+                        text = chunk.text,
+                        vector = floatArrayToByteArray(vector)
                     )
+                    appDb.bookEmbeddingDao.insert(embedding)
+                    insertedCount++
+
+                    if (insertedCount % batchSize == 0) {
+                        System.gc()
+                    }
                 }
 
-                appDb.bookEmbeddingDao.insertAll(embeddings)
                 appDb.bookChapterDao.upVectorizeStatus(book.bookUrl, chapter.index, "completed")
-                AppLog.put("Vectorize: 第${idx+1}章完成, ${chunks.size}个chunk已存储")
-                callback?.onChapterComplete(idx, chunks.size)
+                AppLog.put("Vectorize: 第${idx+1}章完成, ${insertedCount}个chunk已存储")
+                callback?.onChapterComplete(idx, insertedCount)
 
             } catch (e: Exception) {
                 coroutineContext.ensureActive()
