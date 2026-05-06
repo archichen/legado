@@ -8,9 +8,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+
+data class AgentEvent(
+    val bookUrl: String,
+    val type: String,
+    val content: String
+)
 
 object ChatAgentManager {
 
@@ -22,13 +30,15 @@ object ChatAgentManager {
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning
 
+    private val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 64)
+    val events: SharedFlow<AgentEvent> = _events
+
     private var currentJob: Job? = null
 
     fun sendMessage(
         bookUrl: String,
         content: String,
-        provider: LLMProvider,
-        callback: AgentFactory.Callback? = null
+        provider: LLMProvider
     ) {
         if (currentJob?.isActive == true) {
             AppLog.put("ChatAgent: 已有任务在运行，忽略新消息")
@@ -56,7 +66,21 @@ object ChatAgentManager {
 
                 _status.value = "Agent 处理中..."
 
-                val (response, _) = AgentFactory.chat(provider, book, history, content, callback)
+                val (response, _) = AgentFactory.chat(provider, book, history, content,
+                    object : AgentFactory.Callback {
+                        override fun onThinking(thinking: String) {
+                            _events.tryEmit(AgentEvent(bookUrl, "thinking", thinking.take(200)))
+                        }
+
+                        override fun onToolCall(toolName: String, arguments: String) {
+                            _events.tryEmit(AgentEvent(bookUrl, "tool_call", "$toolName($arguments)"))
+                        }
+
+                        override fun onToolResult(toolName: String, result: String) {
+                            _events.tryEmit(AgentEvent(bookUrl, "tool_result", result.take(200)))
+                        }
+                    }
+                )
 
                 appDb.chatMessageDao.insert(
                     ChatMessage(bookUrl = bookUrl, role = ChatMessage.ROLE_ASSISTANT, content = response)

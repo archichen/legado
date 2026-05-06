@@ -127,6 +127,24 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
                 updateButtonState()
             }
         }
+        viewLifecycleOwner.lifecycleScope.launch {
+            ChatAgentManager.events.collectLatest { event ->
+                if (event.bookUrl == bookUrl) {
+                    val msg = ChatMessage(
+                        bookUrl = bookUrl,
+                        role = when (event.type) {
+                            "thinking" -> ChatMessage.ROLE_THINKING
+                            "tool_call" -> ChatMessage.ROLE_TOOL_CALL
+                            "tool_result" -> ChatMessage.ROLE_TOOL_RESULT
+                            else -> ChatMessage.ROLE_ASSISTANT
+                        },
+                        content = event.content
+                    )
+                    adapter.submitList(adapter.currentList + msg)
+                    _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
+                }
+            }
+        }
     }
 
     private fun loadProvider() {
@@ -150,44 +168,7 @@ class ChatDialogFragment : BottomSheetDialogFragment() {
         ChatAgentManager.sendMessage(
             bookUrl = bookUrl,
             content = content,
-            provider = currentProvider,
-            callback = object : AgentFactory.Callback {
-                override fun onThinking(thinking: String) {
-                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                        val thinkingMsg = ChatMessage(
-                            bookUrl = bookUrl,
-                            role = ChatMessage.ROLE_THINKING,
-                            content = thinking.take(200)
-                        )
-                        adapter.submitList(adapter.currentList + thinkingMsg)
-                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                    }
-                }
-
-                override fun onToolCall(toolName: String, arguments: String) {
-                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                        val toolCallMsg = ChatMessage(
-                            bookUrl = bookUrl,
-                            role = ChatMessage.ROLE_TOOL_CALL,
-                            content = "$toolName($arguments)"
-                        )
-                        adapter.submitList(adapter.currentList + toolCallMsg)
-                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                    }
-                }
-
-                override fun onToolResult(toolName: String, result: String) {
-                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-                        val resultMsg = ChatMessage(
-                            bookUrl = bookUrl,
-                            role = ChatMessage.ROLE_TOOL_RESULT,
-                            content = result.take(200)
-                        )
-                        adapter.submitList(adapter.currentList + resultMsg)
-                        _binding?.recyclerView?.scrollToPosition(adapter.itemCount - 1)
-                    }
-                }
-            }
+            provider = currentProvider
         )
     }
 

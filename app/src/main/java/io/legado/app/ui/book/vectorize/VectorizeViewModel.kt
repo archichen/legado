@@ -46,7 +46,10 @@ class VectorizeViewModel(application: Application) : BaseViewModel(application) 
 
     fun startVectorize() {
         val b = book ?: return
-        val v = vectorizer ?: return
+        val client = EmbeddingManager.getClientOrNull() ?: return
+
+        val v = BookVectorizer(b, client)
+        vectorizer = v
 
         execute {
             statusMessage.postValue("向量化开始...")
