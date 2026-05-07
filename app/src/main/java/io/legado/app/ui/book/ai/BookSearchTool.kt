@@ -24,9 +24,9 @@ class BookSearchTool(private val book: Book) {
     fun getToolDefs(): List<OpenAIClient.ToolDef> = listOf(
         ToolHelper.buildToolDef(
             "searchContent",
-            "搜索书籍正文内容。支持关键词搜索和正则表达式。返回匹配结果包含行号和章节名。",
+            "搜索书籍正文内容。支持单关键词、多关键词（空格分隔，匹配任意一个）、正则表达式。返回匹配结果包含行号和章节名。",
             listOf(
-                ToolHelper.PropDef("keyword", "string", "搜索关键词或正则表达式", true),
+                ToolHelper.PropDef("keyword", "string", "搜索关键词。多个关键词用空格分隔（如'帝国 联邦'会匹配包含任意一个词的行）。也支持正则表达式。", true),
                 ToolHelper.PropDef("isRegex", "boolean", "是否使用正则表达式，默认false", false),
                 ToolHelper.PropDef("startChapter", "integer", "搜索起始章节索引（从0开始），默认搜索全部", false),
                 ToolHelper.PropDef("endChapter", "integer", "搜索结束章节索引（包含），默认搜索全部", false),
@@ -110,9 +110,15 @@ class BookSearchTool(private val book: Book) {
             contentProcessor?.getContent(book, chapter, content, useReplace = true)?.toString() ?: content
         } catch (e: Exception) { content }
 
+        val keywords = if (regex == null) keyword.split(" ").filter { it.isNotBlank() } else emptyList()
+
         val lines = processed.lines()
         for ((lineIdx, line) in lines.withIndex()) {
-            val matched = if (regex != null) regex.containsMatchIn(line) else line.contains(keyword, ignoreCase = true)
+            val matched = when {
+                regex != null -> regex.containsMatchIn(line)
+                keywords.size > 1 -> keywords.any { line.contains(it, ignoreCase = true) }
+                else -> line.contains(keyword, ignoreCase = true)
+            }
             if (matched) {
                 val lineNum = lineIdx + 1
                 val snippet = line.trim().take(100)
