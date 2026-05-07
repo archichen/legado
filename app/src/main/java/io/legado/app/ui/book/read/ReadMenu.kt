@@ -501,6 +501,13 @@ class ReadMenu @JvmOverloads constructor(
                 callBack.showMoreSetting()
             }
         }
+
+        //错字修正
+        llCorrection.setOnClickListener {
+            runMenuOut {
+                callBack.openCorrectionProgress()
+            }
+        }
     }
 
     private fun initAnimation() {
@@ -595,6 +602,7 @@ class ReadMenu @JvmOverloads constructor(
         fun onMenuShow()
         fun onMenuHide()
         fun openAIChat()
+        fun openCorrectionProgress()
     }
 
 }

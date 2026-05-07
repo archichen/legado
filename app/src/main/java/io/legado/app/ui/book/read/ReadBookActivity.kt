@@ -92,6 +92,7 @@ import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
 import io.legado.app.ui.book.toc.rule.TxtTocRuleDialog
 import io.legado.app.ui.book.ai.ChatDialogFragment
+import io.legado.app.ui.book.correction.CorrectionProgressDialog
 import io.legado.app.ui.browser.WebViewActivity
 import io.legado.app.ui.dict.DictDialog
 import io.legado.app.ui.file.HandleFileContract
@@ -1504,6 +1505,11 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun openAIChat() {
         val book = ReadBook.book ?: return
         ChatDialogFragment.show(supportFragmentManager, book.bookUrl)
+    }
+
+    override fun openCorrectionProgress() {
+        val book = ReadBook.book ?: return
+        CorrectionProgressDialog.show(supportFragmentManager, book.bookUrl)
     }
 
     override fun onLayoutPageCompleted(index: Int, page: TextPage) {

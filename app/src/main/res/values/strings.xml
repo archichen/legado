@@ -97,6 +97,13 @@
     <string name="vectorize_start">Start</string>
     <string name="vectorize_stop">Stop</string>
     <string name="vectorize_clear">Clear</string>
+    <string name="correction">Typo Correction</string>
+    <string name="correction_progress">Correction Progress</string>
+    <string name="correction_start">Start</string>
+    <string name="correction_stop">Stop</string>
+    <string name="correction_clear">Clear</string>
+    <string name="correction_enable">Enable Correction</string>
+    <string name="correction_chapters">Pre-process Chapters</string>
     <string name="about">About</string>
     <string name="donate">Donations</string>
     <string name="exit">Exit</string>
