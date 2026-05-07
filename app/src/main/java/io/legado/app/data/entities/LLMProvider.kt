@@ -1,6 +1,7 @@
 package io.legado.app.data.entities
 
 import android.os.Parcelable
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.parcelize.Parcelize
@@ -15,7 +16,11 @@ data class LLMProvider(
     var apiKey: String = "",
     var modelName: String = "",
     var isDefault: Boolean = false,
-    var sortNumber: Int = 0
+    var sortNumber: Int = 0,
+    @ColumnInfo(defaultValue = "1")
+    var maxConcurrent: Int = 1,
+    @ColumnInfo(defaultValue = "0")
+    var maxCharsPerRequest: Int = 0
 ) : Parcelable {
 
     override fun hashCode(): Int {
